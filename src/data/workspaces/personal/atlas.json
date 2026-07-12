@@ -1,14 +1,14 @@
-{
+﻿{
   "id": "atlas",
   "name": "Atlas",
   "workspace": "personal",
   "category": "research",
-  "status": "Active",
-  "description": "\"A map of how to think, not what to know.\" A research-driven design tool mapping interaction-design behavior.",
+  "status": "Shipped",
+  "description": "A stress trace for interaction-design principles: distant cases expose assumptions and preserve every revision without generating an answer.",
   "url": "https://atlas-slice.vercel.app/",
-  "github": "",
+  "github": "https://github.com/tanishkfr/atlas-slice",
   "deployment": "https://atlas-slice.vercel.app/",
   "figma": "",
-  "lastUpdated": "2026-07-12T00:00:00Z",
+  "lastUpdated": "2026-07-12T22:21:27Z",
   "todos": []
 }
