@@ -1,14 +1,14 @@
-{
+﻿{
   "id": "pentimento",
   "name": "Pentimento",
   "workspace": "personal",
   "category": "research",
-  "status": "Active",
-  "description": "\"A memoir of your archive.\" A critique of algorithmic autobiography allowing visible user corrections.",
+  "status": "Shipped",
+  "description": "A machine-written memoir that physically yields to its subject; human corrections become sovereign ink while withdrawn readings remain visible.",
   "url": "https://pentimento-lovat.vercel.app/",
-  "github": "",
+  "github": "https://github.com/tanishkfr/pentimento",
   "deployment": "https://pentimento-lovat.vercel.app/",
   "figma": "",
-  "lastUpdated": "2026-07-12T00:00:00Z",
+  "lastUpdated": "2026-07-12T22:21:27Z",
   "todos": []
 }

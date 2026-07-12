@@ -1,26 +1,26 @@
-{
+﻿{
   "id": "design-or-disaster",
   "name": "Design or Disaster",
   "workspace": "personal",
   "category": "research",
-  "status": "Review",
-  "description": "An interactive design-judgment game evaluating interface decisions against an expert panel.",
+  "status": "Shipped",
+  "description": "A spatial critique archive where visitors file evidence plates before comparing how five fallible jurors see the same interface.",
   "url": "https://design-or-disaster.vercel.app/",
-  "github": "",
+  "github": "https://github.com/tanishkfr/design-or-disaster",
   "deployment": "https://design-or-disaster.vercel.app/",
   "figma": "",
-  "lastUpdated": "2026-07-12T15:14:20.315Z",
+  "lastUpdated": "2026-07-12T22:21:27Z",
   "todos": [
     {
       "id": "todo_vsqd2cw9",
       "text": "Rewrite onboarding",
-      "completed": false,
+      "completed": true,
       "createdAt": "2026-07-12T15:14:10.367Z"
     },
     {
       "id": "todo_qxjsxcl1",
       "text": "Structured test",
-      "completed": false,
+      "completed": true,
       "createdAt": "2026-07-12T15:14:20.315Z"
     }
   ]
