@@ -45,6 +45,21 @@ Open [http://localhost:3000](http://localhost:3000).
 
 The development server watches both the interface and server code.
 
+## First-run setup
+
+The setup guide opens automatically the first time you run the product. You can replay it at any time with the question-mark button in the top bar or **Settings -> Replay setup guide**.
+
+It walks through:
+
+1. how conversations become durable project memory;
+2. where personal data is stored;
+3. testing and saving an optional Gemini connection;
+4. generating a protected MCP credential;
+5. copying a complete MCP client configuration;
+6. starting the first real conversation.
+
+Gemini keys and MCP credentials are saved only to the ignored local `.env` file. The full MCP token is shown when it is generated, so copy it into your client before leaving that setup step.
+
 ## AI configuration
 
 Without configuration, Studio runs in local-intelligence mode. Conversations, capture, persistence, search, import, and editing all continue to work.

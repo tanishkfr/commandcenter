@@ -1,5 +1,8 @@
 import type { ArtifactStatus, ArtifactType, MemoryArtifact, SearchResult, SourceType, StudioProject, StudioSession, StudioSource, TimelineEvent } from './creativeMemory';
 
+export type ConnectionStatus={
+  aiConfigured:boolean;aiModel:string;mcpConfigured:boolean;mcpUrl:string;mcpTokenPreview:string;dataFile:string;
+};
 export type Bootstrap={
   project:StudioProject;projects:StudioProject[];sessions:StudioSession[];activeSession:StudioSession|null;
   artifacts:MemoryArtifact[];sources:StudioSource[];events:TimelineEvent[];aiConfigured:boolean;
@@ -26,4 +29,8 @@ export const studioApi={
   addSource:(input:{projectId:string;type?:SourceType;title:string;url?:string;note?:string})=>request<StudioSource>('/api/studio/sources',{method:'POST',body:JSON.stringify(input)}),
   importText:(input:{projectId:string;title:string;text:string})=>request<StudioSession>('/api/studio/import',{method:'POST',body:JSON.stringify(input)}),
   search:(query:string,projectId?:string)=>request<{results:SearchResult[]}>('/api/studio/search?q='+encodeURIComponent(query)+(projectId?'&projectId='+encodeURIComponent(projectId):'')),
+  connectionStatus:()=>request<ConnectionStatus>('/api/studio/settings/connections'),
+  configureAI:(apiKey:string,model:string)=>request<ConnectionStatus>('/api/studio/settings/ai',{method:'POST',body:JSON.stringify({apiKey,model})}),
+  disconnectAI:()=>request<ConnectionStatus>('/api/studio/settings/ai',{method:'DELETE'}),
+  generateMcp:()=>request<{token:string;url:string;config:Record<string,unknown>}>('/api/studio/settings/mcp',{method:'POST'}),
 };

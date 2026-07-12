@@ -1,10 +1,11 @@
 import { CSSProperties, FormEvent, ReactNode, useEffect, useRef, useState } from 'react';
 import {
   ArrowRight, ArrowUp, ArrowUpRight, Bookmark, Brain, Check, CheckCircle2, ChevronDown, Circle, Clock3,
-  Command, Download, Edit3, Feather, FileInput, Figma, Github, History, Layers3, Link2, Loader2, MessageCircleMore,
+  Command, Download, Edit3, Feather, CircleHelp, FileInput, Figma, Github, History, Layers3, Link2, Loader2, MessageCircleMore,
   Mic2, MoreHorizontal, Plus, Search, Settings2, Sparkles, Trash2, WandSparkles, X
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
+import Onboarding from './Onboarding';
 import { studioApi, type Bootstrap } from './lib/studioApi';
 import type { ArtifactType, MemoryArtifact, SearchResult, StudioProject, StudioSession, StudioSource, TimelineEvent } from './lib/creativeMemory';
 
@@ -38,13 +39,13 @@ function Sidebar({data,surface,onSurface,onProject,onNewProject}:{
   </aside>
 }
 
-function Topbar({data,onSearch,onSettings}: {data:Bootstrap;onSearch:()=>void;onSettings:()=>void}){
+function Topbar({data,onSearch,onSettings,onHelp}: {data:Bootstrap;onSearch:()=>void;onSettings:()=>void;onHelp:()=>void}){
   return <header className="topbar">
     <div className="project-switcher"><span className="project-dot" style={{background:data.project.color}}/><span>{data.project.name}</span><span className="topbar-context">/ {data.activeSession?.title||'No conversation'}</span></div>
     <div className="topbar-actions">
       <span className={'sync-state '+(data.aiConfigured?'ai-on':'')}><span/>{data.aiConfigured?'Gemini connected':'Local intelligence'}</span>
       <button className="search-button" onClick={onSearch}><Search size={14}/><span>Find anything</span><kbd><Command size={10}/> K</kbd></button>
-      <button className="icon-button" aria-label="Settings" onClick={onSettings}><Settings2 size={16}/></button>
+      <button className="icon-button" aria-label="Open setup guide" title="Setup guide" onClick={onHelp}><CircleHelp size={16}/></button><button className="icon-button" aria-label="Settings" title="Settings" onClick={onSettings}><Settings2 size={16}/></button>
     </div>
   </header>
 }
@@ -146,13 +147,13 @@ function SimpleDialog({type,data,onClose,onDone}: {type:Exclude<Dialog,'settings
   </form></DialogShell>
 }
 
-function SettingsDialog({data,onClose,onProject}: {data:Bootstrap;onClose:()=>void;onProject:(project:StudioProject)=>void}){
+function SettingsDialog({data,onClose,onProject,onOnboarding}: {data:Bootstrap;onClose:()=>void;onProject:(project:StudioProject)=>void;onOnboarding:()=>void}){
   const [name,setName]=useState(data.project.name);const [description,setDescription]=useState(data.project.description);const [saving,setSaving]=useState(false);
   const save=async()=>{setSaving(true);try{onProject(await studioApi.updateProject(data.project.id,{name,description}));onClose()}finally{setSaving(false)}};
   return <DialogShell onClose={onClose}><div className="modal-heading"><div><p className="eyebrow">Personal studio</p><h2>Settings</h2><span>Your project data is stored locally in <code>.memory/studio.json</code>.</span></div><button className="icon-button" onClick={onClose}><X size={17}/></button></div>
     <label><span>Project name</span><input value={name} onChange={e=>setName(e.target.value)}/></label><label><span>Project description</span><textarea value={description} onChange={e=>setDescription(e.target.value)}/></label><div className="modal-actions"><button className="save-memory" onClick={save} disabled={saving||!name.trim()}>{saving?<Loader2 className="spin" size={13}/>:<Check size={13}/>}Save project</button></div>
     <div className="settings-card"><span className={'status-light '+(data.aiConfigured?'online':'')}/><div><strong>{data.aiConfigured?'Gemini is connected':'Local intelligence is active'}</strong><p>{data.aiConfigured?'Conversations and capture use your configured Gemini model.':'The product works offline. Add GEMINI_API_KEY to .env for richer conversation and extraction.'}</p></div></div>
-    <a className="export-button" href="/api/studio/export"><Download size={14}/>Export all personal data</a>
+    <a className="export-button" href="/api/studio/export"><Download size={14}/>Export all personal data</a><button className="export-button replay-setup" onClick={onOnboarding}><CircleHelp size={14}/>Replay setup guide</button>
   </DialogShell>
 }
 
@@ -186,7 +187,7 @@ function SearchDialog({data,onClose,onResult}: {data:Bootstrap;onClose:()=>void;
 export default function App(){
   const [surface,setSurface]=useState<Surface>('studio');const [data,setData]=useState<Bootstrap|null>(null);const [session,setSession]=useState<StudioSession|null>(null);
   const [loading,setLoading]=useState(true);const [thinking,setThinking]=useState(false);const [dialog,setDialog]=useState<Dialog>(null);const [search,setSearch]=useState(false);
-  const [artifact,setArtifact]=useState<MemoryArtifact|null>(null);const [capture,setCapture]=useState<{status:'working'|'done';artifacts:MemoryArtifact[];mode?:string}|null>(null);const [toast,setToast]=useState('');
+  const [artifact,setArtifact]=useState<MemoryArtifact|null>(null);const [onboarding,setOnboarding]=useState(()=>localStorage.getItem('creative-memory-onboarding-v1')!=='complete');const [capture,setCapture]=useState<{status:'working'|'done';artifacts:MemoryArtifact[];mode?:string}|null>(null);const [toast,setToast]=useState('');
   const showToast=(message:string)=>{setToast(message);window.setTimeout(()=>setToast(''),2600)};
   const load=async(projectId?:string,sessionId?:string)=>{setLoading(true);try{const next=await studioApi.bootstrap(projectId);setData(next);if(sessionId)setSession(await studioApi.getSession(sessionId));else setSession(next.activeSession)}catch(error:any){showToast(error.message)}finally{setLoading(false)}};
   useEffect(()=>{load()},[]);
@@ -201,17 +202,18 @@ export default function App(){
   const openResult=async(result:SearchResult)=>{setSearch(false);if(result.kind==='conversation'&&result.sessionId)await selectSession(result.sessionId);else if(result.kind==='artifact'){const item=data?.artifacts.find(a=>a.id===result.id);if(item)setArtifact(item);setSurface('memory')}};
   if(loading&&!data)return <div className="app-loading"><Mark/><Loader2 className="spin" size={18}/><span>Opening your studio…</span></div>;
   if(!data)return <div className="app-loading">Could not open the studio.</div>;
-  return <div className="app-shell"><Sidebar data={data} surface={surface} onSurface={setSurface} onProject={selectProject} onNewProject={()=>setDialog('project')}/><div className="workspace-shell"><Topbar data={data} onSearch={()=>setSearch(true)} onSettings={()=>setDialog('settings')}/><AnimatePresence mode="wait"><motion.div key={surface} className="surface-wrap" initial={{opacity:0,y:4}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-3}}>
+  return <div className="app-shell"><Sidebar data={data} surface={surface} onSurface={setSurface} onProject={selectProject} onNewProject={()=>setDialog('project')}/><div className="workspace-shell"><Topbar data={data} onSearch={()=>setSearch(true)} onSettings={()=>setDialog('settings')} onHelp={()=>setOnboarding(true)}/><AnimatePresence mode="wait"><motion.div key={surface} className="surface-wrap" initial={{opacity:0,y:4}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-3}}>
     {surface==='studio'&&<StudioView data={data} session={session} thinking={thinking} onSend={send} onCapture={captureSession} onSession={selectSession} onNewSession={()=>setDialog('session')} onImport={()=>setDialog('import')} onSource={()=>setDialog('source')} onArtifact={setArtifact}/>}
     {surface==='memory'&&<MemoryView data={data} onArtifact={setArtifact}/>}
     {surface==='history'&&<HistoryView data={data} onSession={selectSession} onArtifact={setArtifact}/>}
   </motion.div></AnimatePresence></div>
   <AnimatePresence>
     {dialog&&dialog!=='settings'&&<SimpleDialog type={dialog} data={data} onClose={()=>setDialog(null)} onDone={completeDialog}/>}
-    {dialog==='settings'&&<SettingsDialog data={data} onClose={()=>setDialog(null)} onProject={async()=>{await load(data.project.id,session?.id);showToast('Project updated')}}/>}
+    {dialog==='settings'&&<SettingsDialog data={data} onClose={()=>setDialog(null)} onProject={async()=>{await load(data.project.id,session?.id);showToast('Project updated')}} onOnboarding={()=>{setDialog(null);setOnboarding(true)}}/>}
     {artifact&&<ArtifactDialog artifact={artifact} onClose={()=>setArtifact(null)} onSave={saveArtifact} onDelete={deleteArtifact}/>}
     {capture&&<CaptureDialog state={capture} onClose={()=>setCapture(null)} onMemory={()=>{setCapture(null);setSurface('memory')}}/>}
     {search&&<SearchDialog data={data} onClose={()=>setSearch(false)} onResult={openResult}/>}
+    {onboarding&&<Onboarding data={data} onClose={()=>setOnboarding(false)} onConfigured={()=>load(data.project.id,session?.id)}/>}
     {toast&&<motion.div className="toast" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} exit={{opacity:0}}>{toast}</motion.div>}
   </AnimatePresence></div>
 }

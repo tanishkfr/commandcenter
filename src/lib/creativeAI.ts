@@ -89,3 +89,11 @@ export async function extractSessionMemory(context:Context):Promise<{artifacts:E
     return{artifacts:artifacts.length?artifacts:heuristicCapture(context.session.messages),mode:artifacts.length?'ai':'local'};
   }catch(error){console.error('Memory extraction failed; using local extraction:',error);return{artifacts:heuristicCapture(context.session.messages),mode:'local'}}
 }
+
+
+export async function testGeminiConnection(apiKey:string,model:string){
+  const probe=new GoogleGenAI({apiKey});
+  const response=await probe.models.generateContent({model,contents:'Reply with exactly CONNECTED.'});
+  if(!response.text?.trim())throw new Error('Gemini returned an empty response.');
+  return true;
+}

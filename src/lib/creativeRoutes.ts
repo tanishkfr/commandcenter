@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { creativeMemoryStore } from './creativeMemory.js';
 import { extractSessionMemory, generateStudioReply } from './creativeAI.js';
+import { configureAI, connectionStatus, disconnectAI, generateMcpCredential } from './connectionSettings.js';
 
 export function createCreativeRouter(onChange:(event:string,data:unknown)=>void){
   const router=Router();
@@ -10,6 +11,26 @@ export function createCreativeRouter(onChange:(event:string,data:unknown)=>void)
 
   router.get('/bootstrap',handle(async(req,res)=>{
     res.json(await creativeMemoryStore.bootstrap(typeof req.query.projectId==='string'?req.query.projectId:undefined));
+  }));
+
+
+  router.get('/settings/connections',handle(async(_req,res)=>{
+    res.json(await connectionStatus());
+  }));
+
+  router.post('/settings/ai',handle(async(req,res)=>{
+    const status=await configureAI(String(req.body?.apiKey||''),String(req.body?.model||'gemini-2.5-flash'));
+    onChange('connections-updated',{aiConfigured:true});res.json(status);
+  }));
+
+  router.delete('/settings/ai',handle(async(_req,res)=>{
+    const status=await disconnectAI();
+    onChange('connections-updated',{aiConfigured:false});res.json(status);
+  }));
+
+  router.post('/settings/mcp',handle(async(_req,res)=>{
+    const result=await generateMcpCredential();
+    onChange('connections-updated',{mcpConfigured:true});res.status(201).json(result);
   }));
 
   router.post('/projects',handle(async(req,res)=>{
