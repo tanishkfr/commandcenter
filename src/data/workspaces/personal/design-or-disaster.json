@@ -9,6 +9,19 @@
   "github": "",
   "deployment": "https://design-or-disaster.vercel.app/",
   "figma": "",
-  "lastUpdated": "2026-07-12T00:00:00Z",
-  "todos": []
+  "lastUpdated": "2026-07-12T15:14:20.315Z",
+  "todos": [
+    {
+      "id": "todo_vsqd2cw9",
+      "text": "Rewrite onboarding",
+      "completed": false,
+      "createdAt": "2026-07-12T15:14:10.367Z"
+    },
+    {
+      "id": "todo_qxjsxcl1",
+      "text": "Structured test",
+      "completed": false,
+      "createdAt": "2026-07-12T15:14:20.315Z"
+    }
+  ]
 }

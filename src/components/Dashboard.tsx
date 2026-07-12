@@ -106,6 +106,9 @@ export function Dashboard() {
 
   useEffect(() => {
     loadData();
+    const handleDataChange = () => loadData();
+    window.addEventListener('workspace-data-changed', handleDataChange);
+    return () => window.removeEventListener('workspace-data-changed', handleDataChange);
   }, []);
 
   useEffect(() => {
