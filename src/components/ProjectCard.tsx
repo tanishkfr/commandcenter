@@ -1,20 +1,35 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Project, ProjectStatus } from '../types';
-import { ArrowRight, Plus } from 'lucide-react';
+import { ArrowRight, Plus, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface ProjectCardProps {
   key?: string;
   project: Project;
+  availableCategories: string[];
   onToggleTodo: (projectId: string, todoId: string) => void;
   onAddTodo: (projectId: string, text: string) => void;
   onChangeStatus: (projectId: string, status: ProjectStatus) => void;
+  onUpdateProject: (projectId: string, updates: Partial<Project>) => void;
+  onDeleteProject: (projectId: string) => void;
 }
 
-export function ProjectCard({ project, onToggleTodo, onAddTodo, onChangeStatus }: ProjectCardProps) {
+export function ProjectCard({ project, availableCategories, onToggleTodo, onAddTodo, onChangeStatus, onUpdateProject, onDeleteProject }: ProjectCardProps) {
   const [newTodo, setNewTodo] = useState('');
   const [isAddingTodo, setIsAddingTodo] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editState, setEditState] = useState({
+    name: project.name,
+    category: project.category,
+    description: project.description
+  });
+
+  const handleSaveEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onUpdateProject(project.id, editState);
+    setIsEditing(false);
+  };
 
   const completedCount = project.todos.filter(t => t.completed).length;
   const totalCount = project.todos.length;
@@ -53,6 +68,61 @@ export function ProjectCard({ project, onToggleTodo, onAddTodo, onChangeStatus }
     }
   };
 
+  if (isEditing) {
+    return (
+      <motion.div 
+        className="group relative flex flex-col bg-white rounded-3xl p-8 shadow-[0_1px_3px_rgba(0,0,0,0.02)] border border-black/[0.03] overflow-hidden"
+        initial={{ opacity: 0, scale: 0.98 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.98 }}
+      >
+        <div className="flex flex-col h-full gap-4 relative z-10">
+          <input 
+            value={editState.name} 
+            onChange={e => setEditState({...editState, name: e.target.value})}
+            className="text-lg font-display font-medium text-zinc-900 border-b border-zinc-200 focus:outline-none focus:border-zinc-400 py-1 bg-transparent"
+            placeholder="Project Name"
+          />
+          <select
+            value={editState.category}
+            onChange={e => setEditState({...editState, category: e.target.value})}
+            className="text-[10px] text-zinc-500 font-mono uppercase border border-zinc-200 rounded px-2 py-1.5 focus:outline-none focus:border-zinc-400 bg-transparent"
+          >
+             {availableCategories.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <textarea
+            value={editState.description}
+            onChange={e => setEditState({...editState, description: e.target.value})}
+            className="text-[13px] text-zinc-500/90 leading-relaxed font-sans border border-zinc-200 rounded-lg p-3 focus:outline-none focus:border-zinc-400 min-h-[100px] resize-none bg-transparent"
+            placeholder="Project Description"
+          />
+          <div className="flex justify-between items-center mt-auto pt-4 border-t border-zinc-100">
+            <button 
+              onClick={(e) => { e.stopPropagation(); onDeleteProject(project.id); }} 
+              className="px-4 py-1.5 text-[11px] font-medium text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors"
+            >
+              Delete
+            </button>
+            <div className="flex gap-2">
+              <button 
+                onClick={(e) => { e.stopPropagation(); setIsEditing(false); }} 
+                className="px-4 py-1.5 text-[11px] font-medium text-zinc-500 hover:text-zinc-700 hover:bg-zinc-50 rounded-md transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleSaveEdit} 
+                className="px-4 py-1.5 text-[11px] font-medium bg-zinc-900 text-white rounded-md hover:bg-zinc-800 transition-colors shadow-sm"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div 
       whileHover={{ y: -2 }}
@@ -67,17 +137,23 @@ export function ProjectCard({ project, onToggleTodo, onAddTodo, onChangeStatus }
       <div className={`absolute -top-24 -right-24 w-48 h-48 rounded-full blur-3xl transition-colors duration-500 pointer-events-none ${getStatusColorLight(project.status)}`} />
       
       <div className="flex justify-between items-start mb-6 relative z-10">
-        <div className="flex flex-col gap-1.5">
-          <span className="text-[10px] text-zinc-400 font-mono tracking-wider uppercase opacity-60">
-            PRJ-{(project.name.length * 13 + 42).toString(16).padStart(4, '0')}
+        <div className="flex flex-col gap-1.5 pr-8 min-w-0">
+          <span className="text-[10px] text-zinc-400 font-mono tracking-wider uppercase opacity-60 truncate">
+            {project.category}
           </span>
-          <h3 className="text-lg font-display font-medium text-zinc-900 tracking-tight group-hover:text-zinc-700 transition-colors">
+          <h3 className="text-lg font-display font-medium text-zinc-900 tracking-tight group-hover:text-zinc-700 transition-colors truncate">
             {project.name}
           </h3>
         </div>
-        <div className="relative">
+        <div className="relative flex items-center gap-2">
+          <button 
+            onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
+            className="opacity-0 group-hover:opacity-100 p-1 -m-1 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-50 rounded transition-all"
+          >
+            <Settings size={14} />
+          </button>
           <div 
-            className="flex items-center gap-2 cursor-pointer p-1 -m-1 hover:bg-zinc-50 rounded"
+            className="flex items-center gap-2 cursor-pointer p-1 -m-1 hover:bg-zinc-50 rounded ml-1"
             onClick={(e) => {
               e.stopPropagation();
               setShowStatusMenu(!showStatusMenu);

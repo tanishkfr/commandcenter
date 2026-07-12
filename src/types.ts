@@ -4,15 +4,22 @@ export interface Todo {
   completed: boolean;
 }
 
-export type ProjectCategory = 'Products' | 'Research' | 'Systems' | 'Tools';
 export type ProjectStatus = 'Active' | 'Review' | 'Shipped' | 'On Hold';
 
 export interface Project {
   id: string;
   name: string;
   description: string;
-  category: ProjectCategory;
+  category: string;
   status: ProjectStatus;
   url: string;
   todos: Todo[];
+}
+
+export interface Workspace {
+  id: string;
+  name: string;
+  color?: string;
+  categories: string[];
+  projects: Project[];
 }
