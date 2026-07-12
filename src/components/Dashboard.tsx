@@ -5,8 +5,22 @@ import { motion } from 'motion/react';
 import { ProjectCategory, ProjectStatus } from '../types';
 
 export function Dashboard() {
-  const [projectList, setProjectList] = useState(projects);
+  const [projectList, setProjectList] = useState(() => {
+    const saved = localStorage.getItem('portfolio-projects');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return projects;
+      }
+    }
+    return projects;
+  });
   const [time, setTime] = useState(new Date());
+
+  useEffect(() => {
+    localStorage.setItem('portfolio-projects', JSON.stringify(projectList));
+  }, [projectList]);
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);

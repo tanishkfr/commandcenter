@@ -15,19 +15,6 @@ export function ProjectCard({ project, onToggleTodo, onAddTodo, onChangeStatus }
   const [newTodo, setNewTodo] = useState('');
   const [isAddingTodo, setIsAddingTodo] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
-  const cardRef = useRef<HTMLDivElement>(null);
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const [isHovering, setIsHovering] = useState(false);
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (cardRef.current) {
-      const rect = cardRef.current.getBoundingClientRect();
-      setMousePosition({
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top,
-      });
-    }
-  };
 
   const completedCount = project.todos.filter(t => t.completed).length;
   const totalCount = project.todos.length;
@@ -68,12 +55,8 @@ export function ProjectCard({ project, onToggleTodo, onAddTodo, onChangeStatus }
 
   return (
     <motion.div 
-      ref={cardRef}
       whileHover={{ y: -2 }}
       transition={{ type: "spring", stiffness: 400, damping: 30 }}
-      onMouseMove={handleMouseMove}
-      onMouseEnter={() => setIsHovering(true)}
-      onMouseLeave={() => setIsHovering(false)}
       className="group relative flex flex-col bg-white rounded-3xl p-8 shadow-[0_1px_3px_rgba(0,0,0,0.02)] border border-black/[0.03] hover:shadow-[0_12px_30px_-8px_rgba(0,0,0,0.06),0_4px_12px_-2px_rgba(0,0,0,0.03)] hover:border-black/[0.06] transition-all duration-500 ease-out cursor-pointer overflow-hidden"
       onClick={() => {
         if (!isAddingTodo && !showStatusMenu) {
@@ -81,12 +64,6 @@ export function ProjectCard({ project, onToggleTodo, onAddTodo, onChangeStatus }
         }
       }}
     >
-      <motion.div
-        className="pointer-events-none absolute -inset-px rounded-3xl opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-        style={{
-          background: `radial-gradient(400px circle at ${mousePosition.x}px ${mousePosition.y}px, rgba(0,0,0,0.03), transparent 40%)`,
-        }}
-      />
       <div className={`absolute -top-24 -right-24 w-48 h-48 rounded-full blur-3xl transition-colors duration-500 pointer-events-none ${getStatusColorLight(project.status)}`} />
       
       <div className="flex justify-between items-start mb-6 relative z-10">
