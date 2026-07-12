@@ -1,0 +1,6 @@
+{
+  "name": "Command Center",
+  "description": "A minimal, modern personal dashboard for quick access to portfolio projects.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

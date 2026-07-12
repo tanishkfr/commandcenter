@@ -1,0 +1,181 @@
+import React, { useState } from 'react';
+import { Project, ProjectStatus } from '../types';
+import { ArrowRight, Plus } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+
+interface ProjectCardProps {
+  key?: string;
+  project: Project;
+  onToggleTodo: (projectId: string, todoId: string) => void;
+  onAddTodo: (projectId: string, text: string) => void;
+  onChangeStatus: (projectId: string, status: ProjectStatus) => void;
+}
+
+export function ProjectCard({ project, onToggleTodo, onAddTodo, onChangeStatus }: ProjectCardProps) {
+  const [newTodo, setNewTodo] = useState('');
+  const [isAddingTodo, setIsAddingTodo] = useState(false);
+  const [showStatusMenu, setShowStatusMenu] = useState(false);
+
+  const completedCount = project.todos.filter(t => t.completed).length;
+  const totalCount = project.todos.length;
+  const remainingTodos = project.todos.filter(t => !t.completed).slice(0, 3);
+  const completedTodos = project.todos.filter(t => t.completed).slice(0, Math.max(0, 3 - remainingTodos.length));
+  const previewTodos = [...remainingTodos, ...completedTodos].slice(0, 3);
+
+  const getStatusIndicator = (status: string) => {
+    switch(status) {
+      case 'Active': return 'bg-emerald-500/80';
+      case 'Review': return 'bg-amber-400/80';
+      case 'Shipped': return 'bg-blue-500/80';
+      case 'On Hold': return 'bg-zinc-300';
+      default: return 'bg-zinc-300';
+    }
+  };
+
+  const statuses: ProjectStatus[] = ['Active', 'Review', 'Shipped', 'On Hold'];
+
+  const handleAddSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newTodo.trim()) {
+      onAddTodo(project.id, newTodo);
+      setNewTodo('');
+      setIsAddingTodo(false);
+    }
+  };
+
+  return (
+    <motion.div 
+      whileHover={{ y: -2 }}
+      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+      className="group relative flex flex-col bg-white rounded-3xl p-8 shadow-[0_1px_3px_rgba(0,0,0,0.02)] border border-black/[0.03] hover:shadow-[0_12px_30px_-8px_rgba(0,0,0,0.06),0_4px_12px_-2px_rgba(0,0,0,0.03)] hover:border-black/[0.06] transition-all duration-500 ease-out cursor-pointer"
+      onClick={() => {
+        if (!isAddingTodo && !showStatusMenu) {
+          window.open(project.url, '_blank', 'noopener,noreferrer');
+        }
+      }}
+    >
+      <div className="flex justify-between items-start mb-6">
+        <h3 className="text-lg font-display font-medium text-zinc-900 tracking-tight group-hover:text-zinc-700 transition-colors">
+          {project.name}
+        </h3>
+        <div className="relative">
+          <div 
+            className="flex items-center gap-2 cursor-pointer p-1 -m-1 hover:bg-zinc-50 rounded"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowStatusMenu(!showStatusMenu);
+            }}
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${getStatusIndicator(project.status)} ${project.status === 'Active' ? 'animate-pulse' : ''}`} />
+            <span className="text-[10px] font-medium text-zinc-400 uppercase tracking-widest">{project.status}</span>
+          </div>
+          
+          <AnimatePresence>
+            {showStatusMenu && (
+              <motion.div
+                initial={{ opacity: 0, y: -4, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -4, scale: 0.95 }}
+                transition={{ duration: 0.15 }}
+                className="absolute right-0 top-full mt-2 w-32 bg-white rounded-lg shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] border border-zinc-100 py-1 z-10"
+              >
+                {statuses.map(s => (
+                  <button
+                    key={s}
+                    className="w-full text-left px-3 py-1.5 text-xs text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 transition-colors flex items-center gap-2"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onChangeStatus(project.id, s);
+                      setShowStatusMenu(false);
+                    }}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${getStatusIndicator(s)}`} />
+                    {s}
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+      
+      <p className="text-[13px] text-zinc-500/90 leading-relaxed mb-10 font-sans">
+        {project.description}
+      </p>
+
+      <div className="mt-auto">
+        <div className="flex flex-col gap-4">
+          <div className="space-y-2">
+            {previewTodos.map(todo => (
+              <div 
+                key={todo.id} 
+                className="flex items-start gap-3 group/todo"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleTodo(project.id, todo.id);
+                }}
+              >
+                <button className="mt-[3px] text-zinc-300 group-hover/todo:text-zinc-400 transition-colors focus:outline-none">
+                  {todo.completed ? (
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <rect x="0.5" y="0.5" width="11" height="11" rx="2.5" fill="currentColor" fillOpacity="0.2" stroke="currentColor"/>
+                      <path d="M3.5 6L5.5 8L8.5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  ) : (
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" className="opacity-60 group-hover/todo:opacity-100 transition-opacity">
+                      <rect x="0.5" y="0.5" width="11" height="11" rx="2.5" stroke="currentColor" strokeWidth="1"/>
+                    </svg>
+                  )}
+                </button>
+                <span className={`text-xs leading-relaxed ${todo.completed ? 'text-zinc-400 line-through decoration-zinc-200/60' : 'text-zinc-600'}`}>
+                  {todo.text}
+                </span>
+              </div>
+            ))}
+
+            {isAddingTodo ? (
+              <form 
+                onSubmit={handleAddSubmit} 
+                className="flex items-center gap-2 mt-2"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <input
+                  type="text"
+                  autoFocus
+                  value={newTodo}
+                  onChange={(e) => setNewTodo(e.target.value)}
+                  placeholder="Type a new task..."
+                  className="w-full text-xs text-zinc-700 bg-transparent border-b border-zinc-200/60 px-0 py-1 focus:outline-none focus:border-zinc-400 transition-colors placeholder:text-zinc-400"
+                  onBlur={() => {
+                    if (!newTodo.trim()) setIsAddingTodo(false);
+                  }}
+                />
+              </form>
+            ) : (
+              <button
+                className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-600 transition-colors mt-2 py-1 group/add"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsAddingTodo(true);
+                }}
+              >
+                <Plus size={12} className="group-hover/add:rotate-90 transition-transform duration-300" />
+                <span>Add Task</span>
+              </button>
+            )}
+          </div>
+
+          <div className="flex justify-between items-end mt-4 pt-4 border-t border-zinc-50">
+            <span className="text-[11px] font-medium text-zinc-400">
+              {totalCount > 0 ? `${completedCount} / ${totalCount} complete` : ''}
+            </span>
+            <div className="flex items-center text-[11px] font-medium text-zinc-400 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
+              <span>Open Project</span>
+              <ArrowRight size={12} className="ml-1" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
