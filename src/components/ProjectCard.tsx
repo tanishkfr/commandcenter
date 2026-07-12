@@ -71,7 +71,14 @@ export function ProjectCard({ project, availableCategories, onToggleTodo, onAddT
   if (isEditing) {
     return (
       <motion.div 
-        className="group relative flex flex-col bg-white rounded-3xl p-8 shadow-[0_1px_3px_rgba(0,0,0,0.02)] border border-black/[0.03] overflow-hidden"
+        onMouseEnter={() => {
+        fetch('/api/context', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ currentProject: project.id, currentCategory: project.category })
+        }).catch(console.error);
+      }}
+      className="group relative flex flex-col bg-white rounded-3xl p-8 shadow-[0_1px_3px_rgba(0,0,0,0.02)] border border-black/[0.03] overflow-hidden"
         initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.98 }}

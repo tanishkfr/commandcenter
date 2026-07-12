@@ -92,6 +92,15 @@ export function Dashboard() {
   });
 
   const [time, setTime] = useState(new Date());
+  const [context, setContext] = useState<any>({});
+
+  
+  const loadContext = async () => {
+    try {
+      const res = await fetch('/api/context');
+      if (res.ok) setContext(await res.json());
+    } catch (e) {}
+  };
 
   const loadData = async () => {
     try {
@@ -105,7 +114,16 @@ export function Dashboard() {
   };
 
   useEffect(() => {
+    if (activeWorkspaceId) {
+      fetch('/api/context', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentWorkspace: activeWorkspaceId })
+      }).catch(console.error);
+    }
+
     loadData();
+    loadContext();
     const handleDataChange = () => loadData();
     window.addEventListener('workspace-data-changed', handleDataChange);
     return () => window.removeEventListener('workspace-data-changed', handleDataChange);
@@ -280,8 +298,29 @@ export function Dashboard() {
               <h1 className="text-3xl md:text-4xl font-display font-semibold tracking-tight text-zinc-900 mb-3">
                 Command Center
               </h1>
+              
               <p className="text-[13px] md:text-sm text-zinc-500 tracking-wide font-sans">Creative Studio Operating System</p>
             </motion.div>
+            
+            <AnimatePresence>
+              {context?.currentProject && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="mt-4 md:mt-0 flex items-center gap-2 bg-zinc-100/50 px-3 py-1.5 rounded-full border border-zinc-200/60"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-[11px] font-medium text-zinc-500 uppercase tracking-widest">
+                    Currently Working On:
+                  </span>
+                  <span className="text-[11px] font-semibold text-zinc-700">
+                    {allProjects.find(p => p.id === context.currentProject)?.name || context.currentProject}
+                  </span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
 
             <motion.div
               initial={{ opacity: 0 }}

@@ -71,9 +71,9 @@ describe('CommandParser', () => {
     const res = parser.parse("Archive project Atl");
     expect(res.success).toBe(false);
     if (!res.success) {
-      expect(res.reason).toBe('Multiple projects matched.');
-      expect(res.options).toContain('Interaction Atlas');
-      expect(res.options).toContain('Atlas');
+      expect((res as any).reason).toBe('Multiple projects matched.');
+      expect((res as any).options).toContain('Interaction Atlas');
+      expect((res as any).options).toContain('Atlas');
     }
   });
 
@@ -93,9 +93,9 @@ describe('CommandParser', () => {
     const res = parser.parse("Archive project Atl");
     expect(res.success).toBe(false);
     if (!res.success) {
-      expect(res.reason).toBe('Multiple projects matched.');
-      expect(res.options).toContain('Interaction Atlas');
-      expect(res.options).toContain('Atlas');
+      expect((res as any).reason).toBe('Multiple projects matched.');
+      expect((res as any).options).toContain('Interaction Atlas');
+      expect((res as any).options).toContain('Atlas');
     }
   });
   

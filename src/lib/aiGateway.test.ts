@@ -13,26 +13,26 @@ describe('AI Gateway', () => {
   let testWorkspaceId: string;
   let testCategoryId: string;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // Note: in a real environment we would mock fs, but for this demo let's use the actual test data
     // assuming 'personal' workspace and 'inbox' category exist.
     const wsData = JSON.parse(fs.readFileSync(path.join(TEST_DATA_DIR, 'workspaces.json'), 'utf-8'));
     testWorkspaceId = wsData[0].id;
     testCategoryId = wsData[0].categories[0].id;
 
-    const res = aiGateway.createProject(testWorkspaceId, testCategoryId, 'Test Project');
+    const res = await aiGateway.createProject(testWorkspaceId, testCategoryId, 'Test Project');
     testProjectId = res.projectId!;
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     // cleanup
-    aiGateway.deleteProject(testProjectId);
+    await aiGateway.deleteProject(testProjectId);
   });
 
-  it('should create a todo', () => {
-    const res = aiGateway.createTodo(testProjectId, 'New test todo');
-    expect(res.success).toBe(true);
-    expect(res.todoId).toBeDefined();
+  it('should create a todo', async () => {
+    const res = await aiGateway.createTodo(testProjectId, 'New test todo');
+    expect((res as any).success).toBe(true);
+    expect((res as any).todoId).toBeDefined();
     
     // Verify it was saved
     const projectPath = path.join(WORKSPACES_DIR, testWorkspaceId, `${testProjectId}.json`);
@@ -41,35 +41,35 @@ describe('AI Gateway', () => {
     expect(project.todos[0].text).toBe('New test todo');
   });
 
-  it('should complete a todo', () => {
-    const todoRes = aiGateway.createTodo(testProjectId, 'To be completed');
-    const res = aiGateway.completeTodo(testProjectId, todoRes.todoId!);
-    expect(res.success).toBe(true);
+  it('should complete a todo', async () => {
+    const todoRes = await aiGateway.createTodo(testProjectId, 'To be completed');
+    const res = await aiGateway.completeTodo(testProjectId, todoRes.todoId!);
+    expect((res as any).success).toBe(true);
 
     const projectPath = path.join(WORKSPACES_DIR, testWorkspaceId, `${testProjectId}.json`);
     const project = JSON.parse(fs.readFileSync(projectPath, 'utf-8'));
     expect(project.todos[0].completed).toBe(true);
   });
 
-  it('should rename a todo', () => {
-    const todoRes = aiGateway.createTodo(testProjectId, 'To be renamed');
-    const res = aiGateway.renameTodo(testProjectId, todoRes.todoId!, 'Renamed');
-    expect(res.success).toBe(true);
+  it('should rename a todo', async () => {
+    const todoRes = await aiGateway.createTodo(testProjectId, 'To be renamed');
+    const res = await aiGateway.renameTodo(testProjectId, todoRes.todoId!, 'Renamed');
+    expect((res as any).success).toBe(true);
 
     const projectPath = path.join(WORKSPACES_DIR, testWorkspaceId, `${testProjectId}.json`);
     const project = JSON.parse(fs.readFileSync(projectPath, 'utf-8'));
     expect(project.todos[0].text).toBe('Renamed');
   });
 
-  it('should move a todo', () => {
-    const p2Res = aiGateway.createProject(testWorkspaceId, testCategoryId, 'Target Project');
+  it('should move a todo', async () => {
+    const p2Res = await aiGateway.createProject(testWorkspaceId, testCategoryId, 'Target Project');
     const p2Id = p2Res.projectId!;
 
-    const todoRes = aiGateway.createTodo(testProjectId, 'To be moved');
+    const todoRes = await aiGateway.createTodo(testProjectId, 'To be moved');
     const todoId = todoRes.todoId!;
 
-    const res = aiGateway.moveTodo(testProjectId, p2Id, todoId);
-    expect(res.success).toBe(true);
+    const res = await aiGateway.moveTodo(testProjectId, p2Id, todoId);
+    expect((res as any).success).toBe(true);
 
     // Verify removed from source
     const project1 = JSON.parse(fs.readFileSync(path.join(WORKSPACES_DIR, testWorkspaceId, `${testProjectId}.json`), 'utf-8'));
@@ -80,34 +80,34 @@ describe('AI Gateway', () => {
     expect(project2.todos.length).toBe(1);
     expect(project2.todos[0].id).toBe(todoId);
 
-    aiGateway.deleteProject(p2Id);
+    await aiGateway.deleteProject(p2Id);
   });
 
-  it('should archive a project', () => {
-    const res = aiGateway.archiveProject(testProjectId);
-    expect(res.success).toBe(true);
+  it('should archive a project', async () => {
+    const res = await aiGateway.archiveProject(testProjectId);
+    expect((res as any).success).toBe(true);
 
     const projectPath = path.join(WORKSPACES_DIR, testWorkspaceId, `${testProjectId}.json`);
     const project = JSON.parse(fs.readFileSync(projectPath, 'utf-8'));
     expect(project.status).toBe('On Hold');
   });
 
-  it('should fail with invalid project IDs', () => {
-    const res = aiGateway.createTodo('invalid_project_id', 'Test');
-    expect(res.success).toBe(false);
-    expect(res.error).toBe('Project not found');
+  it('should fail with invalid project IDs', async () => {
+    const res = await aiGateway.createTodo('invalid_project_id', 'Test');
+    expect((res as any).success).toBe(false);
+    expect((res as any).error).toBe('Project not found');
   });
 
-  it('should fail with invalid workspace IDs', () => {
-    const res = aiGateway.createProject('invalid_ws', testCategoryId, 'Test');
-    expect(res.success).toBe(false);
-    expect(res.error).toContain('Invalid workspace');
+  it('should fail with invalid workspace IDs', async () => {
+    const res = await aiGateway.createProject('invalid_ws', testCategoryId, 'Test');
+    expect((res as any).success).toBe(false);
+    expect((res as any).error).toContain('Invalid workspace');
   });
 
-  it('should fail on schema failures', () => {
+  it('should fail on schema failures', async () => {
     // If we try to update with a bad status, schema validation should fail
-    const res = aiGateway.updateProject(testProjectId, { status: 'Invalid Status' as any });
-    expect(res.success).toBe(false);
-    expect(res.error).toContain('Schema validation failed');
+    const res = await aiGateway.updateProject(testProjectId, { status: 'Invalid Status' as any });
+    expect((res as any).success).toBe(false);
+    expect((res as any).error).toContain('Schema validation failed');
   });
 });

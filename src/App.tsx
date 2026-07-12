@@ -11,6 +11,10 @@ export default function App() {
   useEffect(() => {
     const evtSource = new EventSource('/api/events');
     
+    evtSource.addEventListener('context-changed', (event) => {
+      window.dispatchEvent(new CustomEvent('workspace-context-changed'));
+    });
+    
     evtSource.addEventListener('data-changed', (event) => {
       window.dispatchEvent(new CustomEvent('workspace-data-changed'));
     });

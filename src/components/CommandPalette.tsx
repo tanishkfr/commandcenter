@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Command, CornerDownLeft, Clock, X, Check, ArrowRight, RotateCcw, AlertCircle } from 'lucide-react';
+import { Search, Command, CornerDownLeft, Clock, X, Check, ArrowRight, RotateCcw, AlertCircle, Sparkles } from 'lucide-react';
 
 export default function CommandPalette() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
+  const [context, setContext] = useState<any>({});
   const [debouncedInput, setDebouncedInput] = useState('');
   const [historyOpen, setHistoryOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -151,6 +152,19 @@ export default function CommandPalette() {
     }
   };
 
+  
+  useEffect(() => {
+    const fetchContext = async () => {
+      try {
+        const res = await fetch('/api/context');
+        if (res.ok) setContext(await res.json());
+      } catch (e) {}
+    };
+    if (isOpen) {
+      fetchContext();
+    }
+  }, [isOpen]);
+
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 100);
@@ -259,7 +273,7 @@ export default function CommandPalette() {
         onClick={() => setIsOpen(true)}
         className="fixed bottom-6 right-6 w-14 h-14 bg-[#1A1A1A] text-white border border-gray-800 rounded-full flex items-center justify-center shadow-2xl hover:bg-black transition-transform hover:scale-105 z-40"
       >
-        <Command size={24} />
+        <Sparkles size={24} />
       </button>
 
       <AnimatePresence>
@@ -339,7 +353,7 @@ export default function CommandPalette() {
   );
 }
 
-function HistoryItem({ item, onUndo, isUndoing }: { item: any, onUndo: (id: string) => void, isUndoing: boolean }) {
+function HistoryItem({ item, onUndo, isUndoing }: { key?: string | number, item: any, onUndo: (id: string) => void | Promise<void>, isUndoing: boolean }) {
   const [expanded, setExpanded] = useState(false);
   
   const success = item.result?.success;

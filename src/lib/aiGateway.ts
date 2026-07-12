@@ -1,10 +1,8 @@
 import fs from 'fs';
 import path from 'path';
-import { Project, ProjectSchema, Todo, WorkspaceSchema } from '../types';
+import { Project, ProjectSchema, Todo, WorkspaceSchema } from '../types.js';
+import { dataStore } from './dataStore.js';
 
-const DATA_DIR = path.join(process.cwd(), 'src/data');
-const WORKSPACES_DIR = path.join(DATA_DIR, 'workspaces');
-const WORKSPACES_FILE = path.join(DATA_DIR, 'workspaces.json');
 const LOGS_DIR = path.join(process.cwd(), '.logs');
 
 export type GatewayResult<T = any> = {
@@ -31,58 +29,16 @@ function getLogFile(): string {
   return path.join(LOGS_DIR, `${dateStr}.json`);
 }
 
-function appendLog(entry: any) {
+async function appendLog(entry: any) {
   const logId = "log_" + Date.now();
   entry.logId = logId;
   const file = getLogFile();
   const logLine = JSON.stringify(entry) + '\n';
-  fs.appendFileSync(file, logLine, 'utf8');
+  await fs.promises.appendFile(file, logLine, 'utf8');
   return logId;
 }
 
-function findProjectFile(projectId: string): string | null {
-  if (!fs.existsSync(WORKSPACES_DIR)) return null;
-  const workspaces = fs.readdirSync(WORKSPACES_DIR);
-  for (const ws of workspaces) {
-    const wsPath = path.join(WORKSPACES_DIR, ws);
-    if (!fs.statSync(wsPath).isDirectory()) continue;
-    const files = fs.readdirSync(wsPath);
-    for (const file of files) {
-      if (!file.endsWith('.json')) continue;
-      const filePath = path.join(wsPath, file);
-      const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-      if (data.id === projectId) return filePath;
-    }
-  }
-  return null;
-}
-
-function loadProject(filePath: string): Project {
-  const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-  return ProjectSchema.parse(data);
-}
-
-function saveProject(filePath: string, project: Project) {
-  const result = ProjectSchema.safeParse(project);
-  if (!result.success) {
-    throw new Error(`Schema validation failed: ${result.error.message}`);
-  }
-  fs.writeFileSync(filePath, JSON.stringify(result.data, null, 2), 'utf-8');
-}
-
-function validateWorkspaceAndCategory(workspaceId: string, categoryId: string) {
-  const wsData = JSON.parse(fs.readFileSync(WORKSPACES_FILE, 'utf-8'));
-  const workspaces = z.array(WorkspaceSchema).parse(wsData);
-  const ws = workspaces.find(w => w.id === workspaceId);
-  if (!ws) throw new Error(`Invalid workspace: ${workspaceId}`);
-  if (!ws.categories.some(c => c.id === categoryId)) {
-    throw new Error(`Invalid category: ${categoryId} in workspace ${workspaceId}`);
-  }
-}
-
-import { z } from 'zod';
-
-function logMutation(action: string, success: boolean, details: any, previousState?: any) {
+async function logMutation(action: string, success: boolean, details: any, previousState?: any) {
   return appendLog({
     timestamp: new Date().toISOString(),
     action,
@@ -98,13 +54,9 @@ function getNewId(prefix: string) {
 
 export const aiGateway = {
   
-  addInboxItem(text: string, dryRun: boolean = false): GatewayResult {
+  async addInboxItem(text: string, dryRun: boolean = false): Promise<GatewayResult> {
     try {
-      const inboxFile = path.join(DATA_DIR, 'inbox.json');
-      let inbox = [];
-      if (fs.existsSync(inboxFile)) {
-        inbox = JSON.parse(fs.readFileSync(inboxFile, 'utf8'));
-      }
+      const inbox = await dataStore.readInbox();
       
       const newItem = {
         id: getNewId('inbox'),
@@ -115,29 +67,29 @@ export const aiGateway = {
       if (dryRun) {
         return {
           success: true, action: 'addInboxItem', message: 'Dry run successful', dryRun: true, data: newItem,
-          changes: { files: [inboxFile], todos: [newItem.id], projectTargeted: 'inbox', description: `Add item to inbox: '${text}'` }
+          changes: { files: ['inbox.json'], todos: [newItem.id], projectTargeted: 'inbox', description: `Add item to inbox: '${text}'` }
         };
       }
       
       const previousState = [...inbox];
       inbox.push(newItem);
-      fs.writeFileSync(inboxFile, JSON.stringify(inbox, null, 2), 'utf8');
+      await dataStore.writeInbox(inbox);
       
-      const logId = logMutation('addInboxItem', true, { itemId: newItem.id }, previousState);
+      const logId = await logMutation('addInboxItem', true, { itemId: newItem.id }, previousState);
       return { success: true, logId, action: 'addInboxItem', message: 'Added to inbox successfully', data: newItem };
     } catch (err: any) {
-      logMutation('addInboxItem', false, { error: err.message });
+      await logMutation('addInboxItem', false, { error: err.message });
       return { success: false, action: 'addInboxItem', message: 'Failed to add to inbox', error: err.message };
     }
   },
 
-  createTodo(projectId: string, text: string, dryRun: boolean = false): GatewayResult<Todo> {
+  async createTodo(projectId: string, text: string, dryRun: boolean = false): Promise<GatewayResult<Todo>> {
     try {
       if (!text) throw new Error('Todo text cannot be empty');
-      const file = findProjectFile(projectId);
-      if (!file) throw new Error('Project not found');
+      const { projects } = await dataStore.getWorkspacesAndProjects();
+      const project = projects.find(p => p.id === projectId);
+      if (!project) throw new Error('Project not found');
       
-      const project = loadProject(file);
       const previousState = { ...project };
       
       const newTodo: Todo = {
@@ -147,7 +99,6 @@ export const aiGateway = {
         createdAt: new Date().toISOString()
       };
       
-      // Check for duplicate ID (highly unlikely but mandated)
       if (project.todos.some(t => t.id === newTodo.id)) {
         throw new Error(`Duplicate todo ID generated: ${newTodo.id}`);
       }
@@ -158,26 +109,26 @@ export const aiGateway = {
       if (dryRun) {
         return {
           success: true, action: 'createTodo', projectId, todoId: newTodo.id, message: 'Dry run successful', data: newTodo, dryRun: true,
-          changes: { files: [file], todos: [newTodo.id], projectTargeted: projectId, description: `Create todo '${text}' in project ${projectId}` }
+          changes: { files: [`${project.id}.json`], todos: [newTodo.id], projectTargeted: projectId, description: `Create todo '${text}' in project ${projectId}` }
         };
       }
       
-      saveProject(file, project);
+      await dataStore.writeProject(project.workspace, project);
       
-      const logId = logMutation('createTodo', true, { projectId, todoId: newTodo.id }, previousState);
+      const logId = await logMutation('createTodo', true, { projectId, todoId: newTodo.id }, previousState);
       return { success: true, logId, action: 'createTodo', projectId, todoId: newTodo.id, message: 'Todo created successfully', data: newTodo };
     } catch (err: any) {
-      logMutation('createTodo', false, { projectId, error: err.message });
+      await logMutation('createTodo', false, { projectId, error: err.message });
       return { success: false, action: 'createTodo', projectId, message: 'Failed to create todo', error: err.message };
     }
   },
 
-  completeTodo(projectId: string, todoId: string, dryRun: boolean = false): GatewayResult<Todo> {
+  async completeTodo(projectId: string, todoId: string, dryRun: boolean = false): Promise<GatewayResult<Todo>> {
     try {
-      const file = findProjectFile(projectId);
-      if (!file) throw new Error('Project not found');
+      const { projects } = await dataStore.getWorkspacesAndProjects();
+      const project = projects.find(p => p.id === projectId);
+      if (!project) throw new Error('Project not found');
       
-      const project = loadProject(file);
       const previousState = { ...project };
       
       const todo = project.todos.find(t => t.id === todoId);
@@ -189,27 +140,27 @@ export const aiGateway = {
       if (dryRun) {
         return {
           success: true, action: 'completeTodo', projectId, todoId, message: 'Dry run successful', data: todo, dryRun: true,
-          changes: { files: [file], todos: [todoId], projectTargeted: projectId, description: `Toggle completion of todo ${todoId} in project ${projectId}` }
+          changes: { files: [`${project.id}.json`], todos: [todoId], projectTargeted: projectId, description: `Toggle completion of todo ${todoId} in project ${projectId}` }
         };
       }
       
-      saveProject(file, project);
+      await dataStore.writeProject(project.workspace, project);
       
-      const logId = logMutation('completeTodo', true, { projectId, todoId }, previousState);
+      const logId = await logMutation('completeTodo', true, { projectId, todoId }, previousState);
       return { success: true, logId, action: 'completeTodo', projectId, todoId, message: 'Todo completion toggled successfully', data: todo };
     } catch (err: any) {
-      logMutation('completeTodo', false, { projectId, todoId, error: err.message });
+      await logMutation('completeTodo', false, { projectId, todoId, error: err.message });
       return { success: false, action: 'completeTodo', projectId, todoId, message: 'Failed to complete todo', error: err.message };
     }
   },
 
-  renameTodo(projectId: string, todoId: string, newText: string, dryRun: boolean = false): GatewayResult<Todo> {
+  async renameTodo(projectId: string, todoId: string, newText: string, dryRun: boolean = false): Promise<GatewayResult<Todo>> {
     try {
       if (!newText) throw new Error('Todo text cannot be empty');
-      const file = findProjectFile(projectId);
-      if (!file) throw new Error('Project not found');
+      const { projects } = await dataStore.getWorkspacesAndProjects();
+      const project = projects.find(p => p.id === projectId);
+      if (!project) throw new Error('Project not found');
       
-      const project = loadProject(file);
       const previousState = { ...project };
       
       const todo = project.todos.find(t => t.id === todoId);
@@ -221,26 +172,26 @@ export const aiGateway = {
       if (dryRun) {
         return {
           success: true, action: 'renameTodo', projectId, todoId, message: 'Dry run successful', data: todo, dryRun: true,
-          changes: { files: [file], todos: [todoId], projectTargeted: projectId, description: `Rename todo ${todoId} to '${newText}' in project ${projectId}` }
+          changes: { files: [`${project.id}.json`], todos: [todoId], projectTargeted: projectId, description: `Rename todo ${todoId} to '${newText}' in project ${projectId}` }
         };
       }
       
-      saveProject(file, project);
+      await dataStore.writeProject(project.workspace, project);
       
-      const logId = logMutation('renameTodo', true, { projectId, todoId, newText }, previousState);
+      const logId = await logMutation('renameTodo', true, { projectId, todoId, newText }, previousState);
       return { success: true, logId, action: 'renameTodo', projectId, todoId, message: 'Todo renamed successfully', data: todo };
     } catch (err: any) {
-      logMutation('renameTodo', false, { projectId, todoId, error: err.message });
+      await logMutation('renameTodo', false, { projectId, todoId, error: err.message });
       return { success: false, action: 'renameTodo', projectId, todoId, message: 'Failed to rename todo', error: err.message };
     }
   },
 
-  deleteTodo(projectId: string, todoId: string, dryRun: boolean = false): GatewayResult {
+  async deleteTodo(projectId: string, todoId: string, dryRun: boolean = false): Promise<GatewayResult> {
     try {
-      const file = findProjectFile(projectId);
-      if (!file) throw new Error('Project not found');
+      const { projects } = await dataStore.getWorkspacesAndProjects();
+      const project = projects.find(p => p.id === projectId);
+      if (!project) throw new Error('Project not found');
       
-      const project = loadProject(file);
       const previousState = { ...project };
       
       const idx = project.todos.findIndex(t => t.id === todoId);
@@ -252,29 +203,28 @@ export const aiGateway = {
       if (dryRun) {
         return {
           success: true, action: 'deleteTodo', projectId, todoId, message: 'Dry run successful', dryRun: true,
-          changes: { files: [file], todos: [todoId], projectTargeted: projectId, description: `Delete todo ${todoId} from project ${projectId}` }
+          changes: { files: [`${project.id}.json`], todos: [todoId], projectTargeted: projectId, description: `Delete todo ${todoId} from project ${projectId}` }
         };
       }
       
-      saveProject(file, project);
+      await dataStore.writeProject(project.workspace, project);
       
-      const logId = logMutation('deleteTodo', true, { projectId, todoId }, previousState);
+      const logId = await logMutation('deleteTodo', true, { projectId, todoId }, previousState);
       return { success: true, logId, action: 'deleteTodo', projectId, todoId, message: 'Todo deleted successfully' };
     } catch (err: any) {
-      logMutation('deleteTodo', false, { projectId, todoId, error: err.message });
+      await logMutation('deleteTodo', false, { projectId, todoId, error: err.message });
       return { success: false, action: 'deleteTodo', projectId, todoId, message: 'Failed to delete todo', error: err.message };
     }
   },
 
-  moveTodo(fromProjectId: string, toProjectId: string, todoId: string, dryRun: boolean = false): GatewayResult {
+  async moveTodo(fromProjectId: string, toProjectId: string, todoId: string, dryRun: boolean = false): Promise<GatewayResult> {
     try {
-      const fromFile = findProjectFile(fromProjectId);
-      const toFile = findProjectFile(toProjectId);
-      if (!fromFile) throw new Error('Source project not found');
-      if (!toFile) throw new Error('Target project not found');
+      const { projects } = await dataStore.getWorkspacesAndProjects();
+      const fromProject = projects.find(p => p.id === fromProjectId);
+      const toProject = projects.find(p => p.id === toProjectId);
       
-      const fromProject = loadProject(fromFile);
-      const toProject = loadProject(toFile);
+      if (!fromProject) throw new Error('Source project not found');
+      if (!toProject) throw new Error('Target project not found');
       
       const previousState = { fromProject: { ...fromProject }, toProject: { ...toProject } };
       
@@ -294,24 +244,29 @@ export const aiGateway = {
       if (dryRun) {
         return {
           success: true, action: 'moveTodo', projectId: toProjectId, todoId, message: 'Dry run successful', dryRun: true,
-          changes: { files: [fromFile, toFile], todos: [todoId], projectTargeted: toProjectId, description: `Move todo ${todoId} from ${fromProjectId} to ${toProjectId}` }
+          changes: { files: [`${fromProject.id}.json`, `${toProject.id}.json`], todos: [todoId], projectTargeted: toProjectId, description: `Move todo ${todoId} from ${fromProjectId} to ${toProjectId}` }
         };
       }
       
-      saveProject(fromFile, fromProject);
-      saveProject(toFile, toProject);
+      await dataStore.writeProject(fromProject.workspace, fromProject);
+      await dataStore.writeProject(toProject.workspace, toProject);
       
-      const logId = logMutation('moveTodo', true, { fromProjectId, toProjectId, todoId }, previousState);
+      const logId = await logMutation('moveTodo', true, { fromProjectId, toProjectId, todoId }, previousState);
       return { success: true, logId, action: 'moveTodo', projectId: toProjectId, todoId, message: 'Todo moved successfully' };
     } catch (err: any) {
-      logMutation('moveTodo', false, { fromProjectId, toProjectId, todoId, error: err.message });
+      await logMutation('moveTodo', false, { fromProjectId, toProjectId, todoId, error: err.message });
       return { success: false, action: 'moveTodo', message: 'Failed to move todo', error: err.message };
     }
   },
 
-  createProject(workspaceId: string, categoryId: string, name: string, dryRun: boolean = false): GatewayResult<Project> {
+  async createProject(workspaceId: string, categoryId: string, name: string, dryRun: boolean = false): Promise<GatewayResult<Project>> {
     try {
-      validateWorkspaceAndCategory(workspaceId, categoryId);
+      const workspaces = await dataStore.readWorkspaces();
+      const ws = workspaces.find(w => w.id === workspaceId);
+      if (!ws) throw new Error(`Invalid workspace: ${workspaceId}`);
+      if (!ws.categories.some(c => c.id === categoryId)) {
+        throw new Error(`Invalid category: ${categoryId} in workspace ${workspaceId}`);
+      }
       
       const newProjectId = getNewId('project');
       const newProject: Project = {
@@ -329,123 +284,112 @@ export const aiGateway = {
         todos: []
       };
       
-      const wsPath = path.join(WORKSPACES_DIR, workspaceId);
-      if (!fs.existsSync(wsPath) && !dryRun) {
-        fs.mkdirSync(wsPath, { recursive: true });
-      }
-      
-      const file = path.join(wsPath, `${newProjectId}.json`);
-      
       if (dryRun) {
         return {
           success: true, action: 'createProject', projectId: newProjectId, message: 'Dry run successful', data: newProject, dryRun: true,
-          changes: { files: [file], todos: [], projectTargeted: newProjectId, description: `Create project ${newProjectId} named '${name}' in workspace ${workspaceId}` }
+          changes: { files: [`${newProjectId}.json`], todos: [], projectTargeted: newProjectId, description: `Create project ${newProjectId} named '${name}' in workspace ${workspaceId}` }
         };
       }
       
-      saveProject(file, newProject);
+      await dataStore.writeProject(workspaceId, newProject);
       
-      const logId = logMutation('createProject', true, { projectId: newProjectId }, null);
+      const logId = await logMutation('createProject', true, { projectId: newProjectId }, null);
       return { success: true, logId, action: 'createProject', projectId: newProjectId, message: 'Project created successfully', data: newProject };
     } catch (err: any) {
-      logMutation('createProject', false, { error: err.message });
+      await logMutation('createProject', false, { error: err.message });
       return { success: false, action: 'createProject', message: 'Failed to create project', error: err.message };
     }
   },
 
-  updateProject(projectId: string, updates: Partial<Project>, dryRun: boolean = false): GatewayResult<Project> {
+  async updateProject(projectId: string, updates: Partial<Project>, dryRun: boolean = false): Promise<GatewayResult<Project>> {
     try {
-      const file = findProjectFile(projectId);
-      if (!file) throw new Error('Project not found');
+      const { projects } = await dataStore.getWorkspacesAndProjects();
+      const project = projects.find(p => p.id === projectId);
+      if (!project) throw new Error('Project not found');
       
-      const project = loadProject(file);
       const previousState = { ...project };
       
       if (updates.workspace || updates.category) {
-        validateWorkspaceAndCategory(
-          updates.workspace || project.workspace, 
-          updates.category || project.category
-        );
+        const workspaces = await dataStore.readWorkspaces();
+        const targetWsId = updates.workspace || project.workspace;
+        const targetCatId = updates.category || project.category;
+        
+        const ws = workspaces.find(w => w.id === targetWsId);
+        if (!ws) throw new Error(`Invalid workspace: ${targetWsId}`);
+        if (!ws.categories.some(c => c.id === targetCatId)) {
+          throw new Error(`Invalid category: ${targetCatId} in workspace ${targetWsId}`);
+        }
       }
       
       const updatedProject = { ...project, ...updates, lastUpdated: new Date().toISOString() };
       // ID cannot be changed
       updatedProject.id = project.id;
       
-      let newFile = file;
-      if (updates.workspace && updates.workspace !== project.workspace) {
-         const newWsPath = path.join(WORKSPACES_DIR, updates.workspace);
-         newFile = path.join(newWsPath, path.basename(file));
-      }
-      
       if (dryRun) {
         return {
           success: true, action: 'updateProject', projectId, message: 'Dry run successful', data: updatedProject, dryRun: true,
-          changes: { files: file !== newFile ? [file, newFile] : [file], todos: [], projectTargeted: projectId, description: `Update project ${projectId}` }
+          changes: { files: [`${project.id}.json`], todos: [], projectTargeted: projectId, description: `Update project ${projectId}` }
         };
       }
       
-      saveProject(file, updatedProject);
-      
-      // If workspace changed, move it.
       if (updates.workspace && updates.workspace !== project.workspace) {
-         const newWsPath = path.join(WORKSPACES_DIR, updates.workspace);
-         if (!fs.existsSync(newWsPath)) fs.mkdirSync(newWsPath, { recursive: true });
-         fs.renameSync(file, newFile);
+        await dataStore.writeProject(updates.workspace, updatedProject);
+        await dataStore.deleteProject(project.workspace, project.id);
+      } else {
+        await dataStore.writeProject(project.workspace, updatedProject);
       }
       
-      const logId = logMutation('updateProject', true, { projectId, updates }, previousState);
+      const logId = await logMutation('updateProject', true, { projectId, updates }, previousState);
       return { success: true, logId, action: 'updateProject', projectId, message: 'Project updated successfully', data: updatedProject };
     } catch (err: any) {
-      logMutation('updateProject', false, { projectId, error: err.message });
+      await logMutation('updateProject', false, { projectId, error: err.message });
       return { success: false, action: 'updateProject', projectId, message: 'Failed to update project', error: err.message };
     }
   },
 
-  archiveProject(projectId: string, dryRun: boolean = false): GatewayResult<Project> {
-    const res = this.updateProject(projectId, { status: 'On Hold' }, dryRun);
+  async archiveProject(projectId: string, dryRun: boolean = false): Promise<GatewayResult<Project>> {
+    const res = await this.updateProject(projectId, { status: 'On Hold' }, dryRun);
     res.action = 'archiveProject';
     return res;
   },
   
-  deleteProject(projectId: string, dryRun: boolean = false): GatewayResult {
+  async deleteProject(projectId: string, dryRun: boolean = false): Promise<GatewayResult> {
     try {
-      const file = findProjectFile(projectId);
-      if (!file) throw new Error('Project not found');
+      const { projects } = await dataStore.getWorkspacesAndProjects();
+      const project = projects.find(p => p.id === projectId);
+      if (!project) throw new Error('Project not found');
       
-      const project = loadProject(file);
       const previousState = { ...project };
       
       if (dryRun) {
         return {
           success: true, action: 'deleteProject', projectId, message: 'Dry run successful', dryRun: true,
-          changes: { files: [file], todos: project.todos.map(t => t.id), projectTargeted: projectId, description: `Delete project ${projectId}` }
+          changes: { files: [`${project.id}.json`], todos: project.todos.map(t => t.id), projectTargeted: projectId, description: `Delete project ${projectId}` }
         };
       }
       
-      fs.unlinkSync(file);
+      await dataStore.deleteProject(project.workspace, project.id);
       
-      const logId = logMutation('deleteProject', true, { projectId }, previousState);
+      const logId = await logMutation('deleteProject', true, { projectId }, previousState);
       return { success: true, logId, action: 'deleteProject', projectId, message: 'Project deleted successfully' };
     } catch (err: any) {
-      logMutation('deleteProject', false, { projectId, error: err.message });
+      await logMutation('deleteProject', false, { projectId, error: err.message });
       return { success: false, action: 'deleteProject', projectId, message: 'Failed to delete project', error: err.message };
     }
   },
   
-  // Natural Language Layer Parser
-  
-  undo(logId: string): GatewayResult {
+  async undo(logId: string): Promise<GatewayResult> {
     try {
-      const logsDir = path.join(process.cwd(), '.logs');
-      if (!fs.existsSync(logsDir)) throw new Error('No logs found');
+      if (!fs.existsSync(LOGS_DIR)) throw new Error('No logs found');
       
-      const files = fs.readdirSync(logsDir).filter(f => f.endsWith('.json')).sort().reverse();
+      const files = await fs.promises.readdir(LOGS_DIR);
+      const jsonFiles = files.filter(f => f.endsWith('.json')).sort().reverse();
       let foundLog = null;
       
-      for (const file of files) {
-        const filePath = path.join(logsDir, file);
-        const lines = fs.readFileSync(filePath, 'utf8').trim().split('\n');
+      for (const file of jsonFiles) {
+        const filePath = path.join(LOGS_DIR, file);
+        const data = await fs.promises.readFile(filePath, 'utf8');
+        const lines = data.trim().split('\n');
         for (let i = lines.length - 1; i >= 0; i--) {
           if (!lines[i]) continue;
           const entry = JSON.parse(lines[i]);
@@ -462,28 +406,25 @@ export const aiGateway = {
       
       const { action, previousState } = foundLog;
       
-      
-      if (action === 'addInboxItem') {
-         const inboxFile = path.join(DATA_DIR, 'inbox.json');
-         fs.writeFileSync(inboxFile, JSON.stringify(previousState, null, 2), 'utf8');
+      if (action === 'moveInboxItem') {
+         const { inbox, project } = previousState;
+         await dataStore.writeInbox(inbox);
+         await dataStore.writeProject(project.workspace, project);
+      } else if (action === 'addInboxItem') {
+         await dataStore.writeInbox(previousState);
       } else if (action === 'createProject') {
-
          const { projectId } = foundLog;
-         const file = findProjectFile(projectId);
-         if (file && fs.existsSync(file)) fs.unlinkSync(file);
+         const { projects } = await dataStore.getWorkspacesAndProjects();
+         const proj = projects.find(p => p.id === projectId);
+         if (proj) {
+           await dataStore.deleteProject(proj.workspace, projectId);
+         }
       } else if (action === 'moveTodo') {
          const { fromProject, toProject } = previousState;
-         const fromWs = path.join(WORKSPACES_DIR, fromProject.workspace);
-         if (!fs.existsSync(fromWs)) fs.mkdirSync(fromWs, { recursive: true });
-         saveProject(path.join(fromWs, `${fromProject.id}.json`), fromProject);
-         
-         const toWs = path.join(WORKSPACES_DIR, toProject.workspace);
-         if (!fs.existsSync(toWs)) fs.mkdirSync(toWs, { recursive: true });
-         saveProject(path.join(toWs, `${toProject.id}.json`), toProject);
+         await dataStore.writeProject(fromProject.workspace, fromProject);
+         await dataStore.writeProject(toProject.workspace, toProject);
       } else {
-         const wsPath = path.join(WORKSPACES_DIR, previousState.workspace);
-         if (!fs.existsSync(wsPath)) fs.mkdirSync(wsPath, { recursive: true });
-         saveProject(path.join(wsPath, `${previousState.id}.json`), previousState);
+         await dataStore.writeProject(previousState.workspace, previousState);
       }
       
       return { success: true, message: 'Undo successful' };
@@ -492,7 +433,50 @@ export const aiGateway = {
     }
   },
 
-  dispatchCommand(command: any): GatewayResult {
+  
+  async moveInboxItem(inboxItemId: string, projectId: string, dryRun: boolean = false): Promise<GatewayResult> {
+    try {
+      const inbox = await dataStore.readInbox();
+      const idx = inbox.findIndex(i => i.id === inboxItemId);
+      if (idx === -1) throw new Error('Inbox item not found');
+      
+      const { projects } = await dataStore.getWorkspacesAndProjects();
+      const project = projects.find(p => p.id === projectId);
+      if (!project) throw new Error('Project not found');
+      
+      const previousState = { inbox: [...inbox], project: { ...project } };
+      
+      const [item] = inbox.splice(idx, 1);
+      
+      const newTodo: Todo = {
+        id: getNewId('todo'),
+        text: item.text,
+        completed: false,
+        createdAt: new Date().toISOString()
+      };
+      
+      project.todos.push(newTodo);
+      project.lastUpdated = new Date().toISOString();
+      
+      if (dryRun) {
+        return {
+          success: true, action: 'moveInboxItem', projectId, message: 'Dry run successful', dryRun: true, data: newTodo,
+          changes: { files: ['inbox.json', `${project.id}.json`], todos: [newTodo.id], projectTargeted: projectId, description: `Move inbox item ${inboxItemId} to project ${projectId}` }
+        };
+      }
+      
+      await dataStore.writeInbox(inbox);
+      await dataStore.writeProject(project.workspace, project);
+      
+      const logId = await logMutation('moveInboxItem', true, { inboxItemId, projectId, newTodoId: newTodo.id }, previousState);
+      return { success: true, logId, action: 'moveInboxItem', projectId, todoId: newTodo.id, message: 'Inbox item moved to project successfully', data: newTodo };
+    } catch (err: any) {
+      await logMutation('moveInboxItem', false, { inboxItemId, projectId, error: err.message });
+      return { success: false, action: 'moveInboxItem', message: 'Failed to move inbox item', error: err.message };
+    }
+  },
+
+  async dispatchCommand(command: any): Promise<GatewayResult> {
     if (!command || typeof command.action !== 'string') {
        return { success: false, message: 'Invalid command format' };
     }
@@ -500,30 +484,32 @@ export const aiGateway = {
     const dryRun = !!command.dryRun;
     
     switch (command.action) {
-      
+      case 'createInboxItem':
       case 'addInboxItem':
-        return this.addInboxItem(command.text, dryRun);
+        return await this.addInboxItem(command.text, dryRun);
+      case 'moveInboxItem':
+        return await this.moveInboxItem(command.inboxItemId, command.projectId, dryRun);
+        return await this.addInboxItem(command.text, dryRun);
       case 'undo':
-        return this.undo(command.logId);
+        return await this.undo(command.logId);
       case 'createTodo':
-
-        return this.createTodo(command.projectId, command.text, dryRun);
+        return await this.createTodo(command.projectId, command.text, dryRun);
       case 'completeTodo':
-        return this.completeTodo(command.projectId, command.todoId, dryRun);
+        return await this.completeTodo(command.projectId, command.todoId, dryRun);
       case 'renameTodo':
-        return this.renameTodo(command.projectId, command.todoId, command.text, dryRun);
+        return await this.renameTodo(command.projectId, command.todoId, command.text, dryRun);
       case 'deleteTodo':
-        return this.deleteTodo(command.projectId, command.todoId, dryRun);
+        return await this.deleteTodo(command.projectId, command.todoId, dryRun);
       case 'moveTodo':
-        return this.moveTodo(command.fromProjectId, command.toProjectId, command.todoId, dryRun);
+        return await this.moveTodo(command.fromProjectId, command.toProjectId, command.todoId, dryRun);
       case 'createProject':
-        return this.createProject(command.workspaceId, command.categoryId, command.name, dryRun);
+        return await this.createProject(command.workspaceId, command.categoryId, command.name, dryRun);
       case 'updateProject':
-        return this.updateProject(command.projectId, command.updates, dryRun);
+        return await this.updateProject(command.projectId, command.updates, dryRun);
       case 'archiveProject':
-        return this.archiveProject(command.projectId, dryRun);
+        return await this.archiveProject(command.projectId, dryRun);
       case 'deleteProject':
-        return this.deleteProject(command.projectId, dryRun);
+        return await this.deleteProject(command.projectId, dryRun);
       default:
         return { success: false, message: `Unknown action: ${command.action}` };
     }
