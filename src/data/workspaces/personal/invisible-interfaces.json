@@ -1,0 +1,14 @@
+{
+  "id": "invisible-interfaces",
+  "name": "Invisible Interfaces",
+  "workspace": "personal",
+  "category": "research",
+  "status": "Shipped",
+  "description": "An interactive essay arguing that good interaction design makes interfaces disappear.",
+  "url": "https://invisible-interfaces.vercel.app/",
+  "github": "",
+  "deployment": "https://invisible-interfaces.vercel.app/",
+  "figma": "",
+  "lastUpdated": "2026-07-12T00:00:00Z",
+  "todos": []
+}

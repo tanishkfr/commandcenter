@@ -1,0 +1,24 @@
+[
+  {
+    "id": "personal",
+    "name": "Personal",
+    "color": "#EA9B24",
+    "categories": [
+      { "id": "products", "name": "Products" },
+      { "id": "research", "name": "Research" },
+      { "id": "systems", "name": "Systems" },
+      { "id": "tools", "name": "Tools" }
+    ]
+  },
+  {
+    "id": "fluxion",
+    "name": "Fluxion",
+    "color": "#F5141F",
+    "categories": [
+      { "id": "client-websites", "name": "Client Websites" },
+      { "id": "brand-identity", "name": "Brand Identity" },
+      { "id": "internal-tools", "name": "Internal Tools" },
+      { "id": "experiments", "name": "Experiments" }
+    ]
+  }
+]

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { workspaces } from '../data';
 import { ProjectCard } from './ProjectCard';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, Trash2, ChevronUp, ChevronDown, Edit2, Check, X } from 'lucide-react';
+import { Plus, Trash2, ChevronUp, ChevronDown, Edit2, Check, X, Loader2 } from 'lucide-react';
 import { Workspace, ProjectStatus, Project } from '../types';
+import * as api from '../lib/api';
 
 function CategorySection({
   category,
@@ -18,10 +18,10 @@ function CategorySection({
   projectCardProps
 }: any) {
   const [isEditing, setIsEditing] = useState(false);
-  const [editName, setEditName] = useState(category);
+  const [editName, setEditName] = useState(category.name);
 
   const handleSave = () => {
-    onRename(category, editName);
+    onRename(category.id, editName);
     setIsEditing(false);
   };
 
@@ -38,23 +38,23 @@ function CategorySection({
               onKeyDown={e => e.key === 'Enter' && handleSave()}
             />
             <button onClick={handleSave} className="text-zinc-400 hover:text-emerald-500 transition-colors p-1"><Check size={14} /></button>
-            <button onClick={() => { setIsEditing(false); setEditName(category); }} className="text-zinc-400 hover:text-red-500 transition-colors p-1"><X size={14} /></button>
+            <button onClick={() => { setIsEditing(false); setEditName(category.name); }} className="text-zinc-400 hover:text-red-500 transition-colors p-1"><X size={14} /></button>
           </div>
         ) : (
           <div className="flex items-center gap-4 flex-1 min-w-0">
             <h2 className="text-[11px] font-mono font-medium tracking-[0.1em] text-zinc-400 uppercase truncate">
-              {category}
+              {category.name}
             </h2>
             <div className="flex items-center gap-1 opacity-0 group-hover/header:opacity-100 transition-opacity shrink-0">
               <button onClick={() => setIsEditing(true)} className="text-zinc-400 hover:text-zinc-700 p-1 rounded hover:bg-zinc-100" title="Rename"><Edit2 size={12} /></button>
-              {!isFirst && <button onClick={() => onMove(category, 'up')} className="text-zinc-400 hover:text-zinc-700 p-1 rounded hover:bg-zinc-100" title="Move Up"><ChevronUp size={12} /></button>}
-              {!isLast && <button onClick={() => onMove(category, 'down')} className="text-zinc-400 hover:text-zinc-700 p-1 rounded hover:bg-zinc-100" title="Move Down"><ChevronDown size={12} /></button>}
-              <button onClick={() => onDelete(category)} className="text-zinc-400 hover:text-red-500 p-1 rounded hover:bg-red-50" title="Delete Section"><Trash2 size={12} /></button>
+              {!isFirst && <button onClick={() => onMove(category.id, 'up')} className="text-zinc-400 hover:text-zinc-700 p-1 rounded hover:bg-zinc-100" title="Move Up"><ChevronUp size={12} /></button>}
+              {!isLast && <button onClick={() => onMove(category.id, 'down')} className="text-zinc-400 hover:text-zinc-700 p-1 rounded hover:bg-zinc-100" title="Move Down"><ChevronDown size={12} /></button>}
+              <button onClick={() => onDelete(category.id)} className="text-zinc-400 hover:text-red-500 p-1 rounded hover:bg-red-50" title="Delete Section"><Trash2 size={12} /></button>
             </div>
           </div>
         )}
         <button 
-          onClick={() => onAddProject(category)}
+          onClick={() => onAddProject(category.id)}
           className="flex items-center gap-1 text-[10px] font-medium text-zinc-400 hover:text-zinc-700 uppercase tracking-widest transition-colors ml-4 shrink-0"
         >
           <Plus size={12} />
@@ -74,7 +74,7 @@ function CategorySection({
         {projects.length === 0 && (
           <div className="col-span-full py-12 text-center border border-dashed border-zinc-200 rounded-2xl text-[13px] text-zinc-400 flex flex-col items-center gap-2">
             <span>No projects in this section yet.</span>
-            <button onClick={() => onAddProject(category)} className="text-zinc-600 hover:text-zinc-900 font-medium underline underline-offset-4 decoration-zinc-300 hover:decoration-zinc-900 transition-all">Add your first project</button>
+            <button onClick={() => onAddProject(category.id)} className="text-zinc-600 hover:text-zinc-900 font-medium underline underline-offset-4 decoration-zinc-300 hover:decoration-zinc-900 transition-all">Add your first project</button>
           </div>
         )}
       </div>
@@ -83,32 +83,30 @@ function CategorySection({
 }
 
 export function Dashboard() {
-  const [workspaceList, setWorkspaceList] = useState<Workspace[]>(() => {
-    const saved = localStorage.getItem('portfolio-workspaces');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved) as Workspace[];
-        return parsed.map(p => {
-          const defaultWs = workspaces.find(w => w.id === p.id);
-          return { ...p, color: defaultWs?.color || p.color };
-        });
-      } catch (e) {
-        return workspaces;
-      }
-    }
-    return workspaces;
-  });
+  const [workspaceList, setWorkspaceList] = useState<Workspace[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [activeWorkspaceId, setActiveWorkspaceId] = useState(() => {
     const params = new URLSearchParams(window.location.search);
-    return params.get('workspace') || workspaces[0].id;
+    return params.get('workspace') || 'personal';
   });
 
   const [time, setTime] = useState(new Date());
 
+  const loadData = async () => {
+    try {
+      const data = await api.getWorkspaces();
+      setWorkspaceList(data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    localStorage.setItem('portfolio-workspaces', JSON.stringify(workspaceList));
-  }, [workspaceList]);
+    loadData();
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
@@ -133,143 +131,124 @@ export function Dashboard() {
     window.history.pushState({}, '', url);
   };
 
-  const updateProjectInWorkspace = (workspaceId: string, projectId: string, updater: (p: Project) => Project) => {
-    setWorkspaceList(prev => prev.map(w => {
-      if (w.id === workspaceId) {
-        return {
-          ...w,
-          projects: w.projects.map(p => p.id === projectId ? updater(p) : p)
-        };
-      }
-      return w;
-    }));
+  const handleToggleTodo = async (projectId: string, todoId: string) => {
+    // Optimistic update
+    setWorkspaceList(prev => prev.map(w => w.id === activeWorkspaceId ? {
+      ...w, projects: w.projects.map(p => p.id === projectId ? {
+        ...p, todos: p.todos.map(t => t.id === todoId ? { ...t, completed: !t.completed } : t)
+      } : p)
+    } : w));
+    await api.toggleTodo(projectId, todoId);
+    loadData();
   };
 
-  const handleToggleTodo = (projectId: string, todoId: string) => {
-    updateProjectInWorkspace(activeWorkspaceId, projectId, p => ({
-      ...p,
-      todos: p.todos.map(t => t.id === todoId ? { ...t, completed: !t.completed } : t)
-    }));
-  };
-
-  const handleAddTodo = (projectId: string, text: string) => {
+  const handleAddTodo = async (projectId: string, text: string) => {
     if (!text.trim()) return;
-    updateProjectInWorkspace(activeWorkspaceId, projectId, p => ({
-      ...p,
-      todos: [...p.todos, { id: crypto.randomUUID(), text, completed: false }]
-    }));
+    await api.addTodo(projectId, text);
+    loadData();
   };
 
-  const handleChangeStatus = (projectId: string, newStatus: ProjectStatus) => {
-    updateProjectInWorkspace(activeWorkspaceId, projectId, p => ({ ...p, status: newStatus }));
+  const handleChangeStatus = async (projectId: string, newStatus: ProjectStatus) => {
+    await api.updateProject(projectId, { status: newStatus });
+    loadData();
   };
 
-  const handleUpdateProject = (projectId: string, updates: Partial<Project>) => {
-    updateProjectInWorkspace(activeWorkspaceId, projectId, p => ({ ...p, ...updates }));
+  const handleUpdateProject = async (projectId: string, updates: Partial<Project>) => {
+    await api.updateProject(projectId, updates);
+    loadData();
   };
 
-  const handleDeleteProject = (projectId: string) => {
-    setWorkspaceList(prev => prev.map(w => {
-      if (w.id === activeWorkspaceId) {
-        return {
-          ...w,
-          projects: w.projects.filter(p => p.id !== projectId)
-        };
-      }
-      return w;
-    }));
+  const handleDeleteProject = async (projectId: string) => {
+    await api.deleteProject(projectId);
+    loadData();
   };
 
-  const handleRenameCategory = (oldName: string, newName: string) => {
-    if (!newName.trim() || oldName === newName || activeWorkspace.categories.includes(newName)) return;
+  const activeWorkspace = workspaceList.find(w => w.id === activeWorkspaceId) || workspaceList[0];
+
+  const handleRenameCategory = async (categoryId: string, newName: string) => {
+    if (!newName.trim() || !activeWorkspace) return;
     
-    setWorkspaceList(prev => prev.map(w => {
-      if (w.id === activeWorkspaceId) {
-        return {
-          ...w,
-          categories: w.categories.map(c => c === oldName ? newName : c),
-          projects: w.projects.map(p => p.category === oldName ? { ...p, category: newName } : p)
-        };
-      }
-      return w;
-    }));
+    // First update the workspace category list
+    const newCategories = activeWorkspace.categories.map(c => c.id === categoryId ? { ...c, name: newName } : c);
+    await api.updateWorkspace(activeWorkspaceId, { categories: newCategories });
+    
+    // No need to update projects since they store category.id, not name.
+    
+    loadData();
   };
 
-  const handleDeleteCategory = (category: string) => {
-    setWorkspaceList(prev => prev.map(w => {
-      if (w.id === activeWorkspaceId) {
-        return {
-          ...w,
-          categories: w.categories.filter(c => c !== category),
-          projects: w.projects.filter(p => p.category !== category)
-        };
-      }
-      return w;
-    }));
+  const handleDeleteCategory = async (categoryId: string) => {
+    if (!activeWorkspace) return;
+    
+    const newCategories = activeWorkspace.categories.filter(c => c.id !== categoryId);
+    await api.updateWorkspace(activeWorkspaceId, { categories: newCategories });
+    
+    const projectsInCategory = activeWorkspace.projects.filter(p => p.category === categoryId);
+    for (const project of projectsInCategory) {
+      await api.deleteProject(project.id);
+    }
+    
+    loadData();
   };
 
-  const handleMoveCategory = (category: string, direction: 'up' | 'down') => {
-    setWorkspaceList(prev => prev.map(w => {
-      if (w.id === activeWorkspaceId) {
-        const idx = w.categories.indexOf(category);
-        if (direction === 'up' && idx > 0) {
-          const newCats = [...w.categories];
-          [newCats[idx - 1], newCats[idx]] = [newCats[idx], newCats[idx - 1]];
-          return { ...w, categories: newCats };
-        } else if (direction === 'down' && idx < w.categories.length - 1) {
-          const newCats = [...w.categories];
-          [newCats[idx + 1], newCats[idx]] = [newCats[idx], newCats[idx + 1]];
-          return { ...w, categories: newCats };
-        }
-      }
-      return w;
-    }));
+  const handleMoveCategory = async (categoryId: string, direction: 'up' | 'down') => {
+    if (!activeWorkspace) return;
+    
+    const idx = activeWorkspace.categories.findIndex(c => c.id === categoryId);
+    const newCats = [...activeWorkspace.categories];
+    
+    if (direction === 'up' && idx > 0) {
+      [newCats[idx - 1], newCats[idx]] = [newCats[idx], newCats[idx - 1]];
+      await api.updateWorkspace(activeWorkspaceId, { categories: newCats });
+      loadData();
+    } else if (direction === 'down' && idx < activeWorkspace.categories.length - 1) {
+      [newCats[idx + 1], newCats[idx]] = [newCats[idx], newCats[idx + 1]];
+      await api.updateWorkspace(activeWorkspaceId, { categories: newCats });
+      loadData();
+    }
   };
 
-  const handleAddCategory = () => {
-    let newName = "New Section";
+  const handleAddCategory = async () => {
+    if (!activeWorkspace) return;
+    
+    let baseName = "New Section";
+    let newName = baseName;
     let counter = 1;
-    while (activeWorkspace?.categories.includes(newName)) {
-      newName = `New Section ${counter}`;
+    while (activeWorkspace.categories.some(c => c.name === newName)) {
+      newName = `${baseName} ${counter}`;
       counter++;
     }
     
-    setWorkspaceList(prev => prev.map(w => {
-      if (w.id === activeWorkspaceId) {
-        return { ...w, categories: [...w.categories, newName] };
-      }
-      return w;
-    }));
+    let baseId = newName.toLowerCase().replace(/\s+/g, '-');
+    let newId = baseId;
+    counter = 1;
+    while (activeWorkspace.categories.some(c => c.id === newId)) {
+      newId = `${baseId}-${counter}`;
+      counter++;
+    }
+    
+    const newCategories = [...activeWorkspace.categories, { id: newId, name: newName }];
+    await api.updateWorkspace(activeWorkspaceId, { categories: newCategories });
+    loadData();
   };
 
-  const handleAddProject = (category: string) => {
-    const newProject: Project = {
-      id: crypto.randomUUID(),
-      name: 'New Project',
-      description: 'Project description goes here.',
-      category,
-      status: 'Active',
-      url: '',
-      todos: [],
-    };
-    
-    setWorkspaceList(prev => prev.map(w => {
-      if (w.id === activeWorkspaceId) {
-        return {
-          ...w,
-          projects: [...w.projects, newProject]
-        };
-      }
-      return w;
-    }));
+  const handleAddProject = async (category: string) => {
+    await api.addProject(activeWorkspaceId, category);
+    loadData();
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center text-zinc-400">
+        <Loader2 className="animate-spin w-5 h-5" />
+      </div>
+    );
+  }
 
   const allProjects = workspaceList.flatMap(w => w.projects);
   const activeCount = allProjects.filter(p => p.status === 'Active').length;
   const reviewCount = allProjects.filter(p => p.status === 'Review').length;
   const tasksRemaining = allProjects.reduce((acc, p) => acc + p.todos.filter(t => !t.completed).length, 0);
-
-  const activeWorkspace = workspaceList.find(w => w.id === activeWorkspaceId) || workspaceList[0];
 
   return (
     <div className="min-h-screen bg-[#FAFAFA] text-zinc-900 font-sans selection:bg-zinc-200 selection:text-zinc-900 box-border relative">
@@ -387,13 +366,13 @@ export function Dashboard() {
             transition={{ duration: 0.3, ease: 'easeOut' }}
             className="space-y-32"
           >
-            {activeWorkspace.categories.map((category, idx) => {
-              const categoryProjects = activeWorkspace.projects.filter(p => p.category === category);
+            {activeWorkspace.categories.map((categoryObj, idx) => {
+              const categoryProjects = activeWorkspace.projects.filter(p => p.category === categoryObj.id);
 
               return (
                 <CategorySection
-                  key={category}
-                  category={category}
+                  key={categoryObj.id}
+                  category={categoryObj}
                   projects={categoryProjects}
                   isFirst={idx === 0}
                   isLast={idx === activeWorkspace.categories.length - 1}

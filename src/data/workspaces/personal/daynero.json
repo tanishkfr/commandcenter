@@ -1,0 +1,14 @@
+{
+  "id": "daynero",
+  "name": "Daynero",
+  "workspace": "personal",
+  "category": "products",
+  "status": "Active",
+  "description": "A minimalist time-tracking and invoicing utility for freelance designers.",
+  "url": "https://example.com/daynero",
+  "github": "",
+  "deployment": "https://example.com/daynero",
+  "figma": "",
+  "lastUpdated": "2026-07-12T00:00:00Z",
+  "todos": []
+}

@@ -1,0 +1,14 @@
+{
+  "id": "pentimento",
+  "name": "Pentimento",
+  "workspace": "personal",
+  "category": "research",
+  "status": "Active",
+  "description": "\"A memoir of your archive.\" A critique of algorithmic autobiography allowing visible user corrections.",
+  "url": "https://pentimento-lovat.vercel.app/",
+  "github": "",
+  "deployment": "https://pentimento-lovat.vercel.app/",
+  "figma": "",
+  "lastUpdated": "2026-07-12T00:00:00Z",
+  "todos": []
+}

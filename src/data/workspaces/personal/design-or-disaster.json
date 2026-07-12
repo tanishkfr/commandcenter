@@ -1,0 +1,14 @@
+{
+  "id": "design-or-disaster",
+  "name": "Design or Disaster",
+  "workspace": "personal",
+  "category": "research",
+  "status": "Review",
+  "description": "An interactive design-judgment game evaluating interface decisions against an expert panel.",
+  "url": "https://design-or-disaster.vercel.app/",
+  "github": "",
+  "deployment": "https://design-or-disaster.vercel.app/",
+  "figma": "",
+  "lastUpdated": "2026-07-12T00:00:00Z",
+  "todos": []
+}

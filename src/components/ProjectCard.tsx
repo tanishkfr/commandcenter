@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Project, ProjectStatus } from '../types';
+import { Project, ProjectStatus, Category } from '../types';
 import { ArrowRight, Plus, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface ProjectCardProps {
   key?: string;
   project: Project;
-  availableCategories: string[];
+  availableCategories: Category[];
   onToggleTodo: (projectId: string, todoId: string) => void;
   onAddTodo: (projectId: string, text: string) => void;
   onChangeStatus: (projectId: string, status: ProjectStatus) => void;
@@ -88,7 +88,7 @@ export function ProjectCard({ project, availableCategories, onToggleTodo, onAddT
             onChange={e => setEditState({...editState, category: e.target.value})}
             className="text-[10px] text-zinc-500 font-mono uppercase border border-zinc-200 rounded px-2 py-1.5 focus:outline-none focus:border-zinc-400 bg-transparent"
           >
-             {availableCategories.map(c => <option key={c} value={c}>{c}</option>)}
+             {availableCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
           <textarea
             value={editState.description}
@@ -139,7 +139,7 @@ export function ProjectCard({ project, availableCategories, onToggleTodo, onAddT
       <div className="flex justify-between items-start mb-6 relative z-10">
         <div className="flex flex-col gap-1.5 pr-8 min-w-0">
           <span className="text-[10px] text-zinc-400 font-mono tracking-wider uppercase opacity-60 truncate">
-            {project.category}
+            {availableCategories.find(c => c.id === project.category)?.name || project.category}
           </span>
           <h3 className="text-lg font-display font-medium text-zinc-900 tracking-tight group-hover:text-zinc-700 transition-colors truncate">
             {project.name}

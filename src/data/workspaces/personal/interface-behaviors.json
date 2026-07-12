@@ -1,0 +1,14 @@
+{
+  "id": "interface-behaviors",
+  "name": "Interface Behaviors",
+  "workspace": "personal",
+  "category": "systems",
+  "status": "On Hold",
+  "description": "A living pattern library cataloging interactive micro-behaviors and edge cases.",
+  "url": "https://example.com/behaviors",
+  "github": "",
+  "deployment": "https://example.com/behaviors",
+  "figma": "",
+  "lastUpdated": "2026-07-12T00:00:00Z",
+  "todos": []
+}

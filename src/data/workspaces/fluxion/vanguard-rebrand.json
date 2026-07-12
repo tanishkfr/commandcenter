@@ -1,0 +1,29 @@
+{
+  "id": "vanguard-rebrand",
+  "name": "Vanguard Rebrand",
+  "workspace": "fluxion",
+  "category": "brand-identity",
+  "status": "Active",
+  "description": "Complete visual identity overhaul and design system for a leading fintech startup.",
+  "url": "https://example.com/vanguard",
+  "github": "",
+  "deployment": "https://example.com/vanguard",
+  "figma": "",
+  "lastUpdated": "2026-07-12T00:00:00Z",
+  "todos": [
+    {
+      "id": "todo_jphj2c4x0",
+      "text": "Finalize logo concepts",
+      "completed": true,
+      "createdAt": "2026-07-10T00:00:00Z",
+      "priority": "high"
+    },
+    {
+      "id": "todo_x17j26tv1",
+      "text": "Prepare brand guidelines PDF",
+      "completed": false,
+      "createdAt": "2026-07-11T00:00:00Z",
+      "priority": "medium"
+    }
+  ]
+}

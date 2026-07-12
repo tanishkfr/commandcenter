@@ -1,0 +1,14 @@
+{
+  "id": "lumina-dashboard",
+  "name": "Lumina Dashboard",
+  "workspace": "fluxion",
+  "category": "internal-tools",
+  "status": "Review",
+  "description": "Admin portal and analytics dashboard for the Lumina hardware ecosystem.",
+  "url": "https://example.com/lumina",
+  "github": "",
+  "deployment": "https://example.com/lumina",
+  "figma": "",
+  "lastUpdated": "2026-07-12T00:00:00Z",
+  "todos": []
+}
