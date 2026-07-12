@@ -343,7 +343,7 @@ export const aiGateway = {
       return { success: true, logId, action: 'updateProject', projectId, message: 'Project updated successfully', data: updatedProject };
     } catch (err: any) {
       await logMutation('updateProject', false, { projectId, error: err.message });
-      return { success: false, action: 'updateProject', projectId, message: 'Failed to update project', error: err.message };
+      return { success: false, action: 'updateProject', projectId, message: 'Failed to update project', error: err?.name === 'ZodError' ? 'Schema validation failed: ' + err.message : err.message };
     }
   },
 

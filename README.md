@@ -1,20 +1,107 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Creative Memory Studio
 
-# Run and deploy your AI Studio app
+A personal, local-first workspace where conversations become durable project memory.
 
-This contains everything you need to run your app locally.
+The conversation is the interface. The project is the memory. Studio is the librarian.
 
-View your app in AI Studio: https://ai.studio/apps/0a30cff8-881d-44dc-b80c-7d77c22f71dc
+## What works
 
-## Run Locally
+- Create and switch projects
+- Start multiple persistent conversations per project
+- Think with a context-aware AI collaborator
+- Capture decisions, principles, questions, ideas, experiments, risks, actions, references, and abandoned directions
+- Review and edit captured memory
+- Resolve, archive, or delete memories
+- Link Figma files, GitHub repositories, research, documents, and notes
+- Import pasted ChatGPT, Claude, Gemini, or other conversations
+- Search across conversations, memory, rationale, and sources
+- Follow a chronological project history
+- Export all personal data as JSON
+- Work without an AI key through the built-in local collaborator and extractor
 
-**Prerequisites:**  Node.js
+There is intentionally no account system. This build is designed for one person running it locally.
 
+## Start the product
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+Install dependencies:
+
+~~~bash
+npm install
+~~~
+
+Optional: copy the environment template and add a Gemini key for richer responses and extraction.
+
+~~~bash
+copy .env.example .env
+~~~
+
+Then run:
+
+~~~bash
+npm run dev
+~~~
+
+Open [http://localhost:3000](http://localhost:3000).
+
+The development server watches both the interface and server code.
+
+## AI configuration
+
+Without configuration, Studio runs in local-intelligence mode. Conversations, capture, persistence, search, import, and editing all continue to work.
+
+For Gemini-backed thinking and extraction, create a .env file:
+
+~~~env
+GEMINI_API_KEY=your_key
+GEMINI_MODEL=gemini-2.5-flash
+~~~
+
+If an AI request fails, Studio automatically falls back to local mode rather than losing the conversation.
+
+## Your data
+
+Personal data is written atomically to:
+
+~~~
+.memory/studio.json
+~~~
+
+The .memory directory is ignored by Git. Use Settings → Export all personal data to create a portable JSON backup.
+
+The first run creates three starter projects. Everything you add after that is persisted across restarts.
+
+## Core workflow
+
+1. Open or create a project.
+2. Start a conversation and think through the work.
+3. Add relevant project sources.
+4. Click Capture session.
+5. Review the memories that were created.
+6. Edit, resolve, archive, or remove them in Memory.
+7. Use Search or History to recover what changed and why.
+
+## Keyboard shortcuts
+
+- Ctrl/Cmd + K — search project memory
+- Shift + Ctrl/Cmd + S — capture the current session
+- / — focus the conversation composer
+- Escape — close the active overlay
+
+## Verification
+
+~~~bash
+npm run lint
+npm test
+npm run build
+~~~
+
+## Architecture
+
+- React 19, TypeScript, Vite, Motion, and Lucide for the application
+- Express for the local API
+- Atomic JSON persistence for a zero-setup personal installation
+- Optional Google Gemini integration
+- Local heuristic collaborator and extraction fallback
+- Server-sent events, MCP, command gateway, undo, and the existing project API remain available
+
+The local persistence layer is intentionally replaceable. A hosted multi-user version can move the same domain model to PostgreSQL, object storage, and background jobs without changing the product loop.

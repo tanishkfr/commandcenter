@@ -7,6 +7,7 @@ import { CommandParser } from './src/lib/commandParser.js';
 import { dataStore } from './src/lib/dataStore.js';
 import crypto from 'crypto';
 import { contextManager } from './src/lib/contextManager.js';
+import { createCreativeRouter } from './src/lib/creativeRoutes.js';
 
 import { mcpServer } from './src/lib/mcp.js';
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
@@ -73,6 +74,10 @@ function broadcastEvent(type: string, data: any) {
   }
 }
 
+
+app.use('/api/studio', createCreativeRouter((event, data) => {
+  broadcastEvent('studio-changed', { event, data });
+}));
 
 app.get('/api/context', (req, res) => {
   res.json(contextManager.getContext());
