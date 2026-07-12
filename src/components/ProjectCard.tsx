@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Project, ProjectStatus } from '../types';
 import { ArrowRight, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -15,6 +15,19 @@ export function ProjectCard({ project, onToggleTodo, onAddTodo, onChangeStatus }
   const [newTodo, setNewTodo] = useState('');
   const [isAddingTodo, setIsAddingTodo] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [isHovering, setIsHovering] = useState(false);
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (cardRef.current) {
+      const rect = cardRef.current.getBoundingClientRect();
+      setMousePosition({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      });
+    }
+  };
 
   const completedCount = project.todos.filter(t => t.completed).length;
   const totalCount = project.todos.length;
@@ -32,6 +45,16 @@ export function ProjectCard({ project, onToggleTodo, onAddTodo, onChangeStatus }
     }
   };
 
+  const getStatusColorLight = (status: string) => {
+    switch(status) {
+      case 'Active': return 'bg-emerald-500/5';
+      case 'Review': return 'bg-amber-500/5';
+      case 'Shipped': return 'bg-blue-500/5';
+      case 'On Hold': return 'bg-zinc-500/5';
+      default: return 'bg-zinc-500/5';
+    }
+  };
+
   const statuses: ProjectStatus[] = ['Active', 'Review', 'Shipped', 'On Hold'];
 
   const handleAddSubmit = (e: React.FormEvent) => {
@@ -45,19 +68,36 @@ export function ProjectCard({ project, onToggleTodo, onAddTodo, onChangeStatus }
 
   return (
     <motion.div 
+      ref={cardRef}
       whileHover={{ y: -2 }}
       transition={{ type: "spring", stiffness: 400, damping: 30 }}
-      className="group relative flex flex-col bg-white rounded-3xl p-8 shadow-[0_1px_3px_rgba(0,0,0,0.02)] border border-black/[0.03] hover:shadow-[0_12px_30px_-8px_rgba(0,0,0,0.06),0_4px_12px_-2px_rgba(0,0,0,0.03)] hover:border-black/[0.06] transition-all duration-500 ease-out cursor-pointer"
+      onMouseMove={handleMouseMove}
+      onMouseEnter={() => setIsHovering(true)}
+      onMouseLeave={() => setIsHovering(false)}
+      className="group relative flex flex-col bg-white rounded-3xl p-8 shadow-[0_1px_3px_rgba(0,0,0,0.02)] border border-black/[0.03] hover:shadow-[0_12px_30px_-8px_rgba(0,0,0,0.06),0_4px_12px_-2px_rgba(0,0,0,0.03)] hover:border-black/[0.06] transition-all duration-500 ease-out cursor-pointer overflow-hidden"
       onClick={() => {
         if (!isAddingTodo && !showStatusMenu) {
           window.open(project.url, '_blank', 'noopener,noreferrer');
         }
       }}
     >
-      <div className="flex justify-between items-start mb-6">
-        <h3 className="text-lg font-display font-medium text-zinc-900 tracking-tight group-hover:text-zinc-700 transition-colors">
-          {project.name}
-        </h3>
+      <motion.div
+        className="pointer-events-none absolute -inset-px rounded-3xl opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+        style={{
+          background: `radial-gradient(400px circle at ${mousePosition.x}px ${mousePosition.y}px, rgba(0,0,0,0.03), transparent 40%)`,
+        }}
+      />
+      <div className={`absolute -top-24 -right-24 w-48 h-48 rounded-full blur-3xl transition-colors duration-500 pointer-events-none ${getStatusColorLight(project.status)}`} />
+      
+      <div className="flex justify-between items-start mb-6 relative z-10">
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[10px] text-zinc-400 font-mono tracking-wider uppercase opacity-60">
+            PRJ-{(project.name.length * 13 + 42).toString(16).padStart(4, '0')}
+          </span>
+          <h3 className="text-lg font-display font-medium text-zinc-900 tracking-tight group-hover:text-zinc-700 transition-colors">
+            {project.name}
+          </h3>
+        </div>
         <div className="relative">
           <div 
             className="flex items-center gap-2 cursor-pointer p-1 -m-1 hover:bg-zinc-50 rounded"
@@ -99,39 +139,45 @@ export function ProjectCard({ project, onToggleTodo, onAddTodo, onChangeStatus }
         </div>
       </div>
       
-      <p className="text-[13px] text-zinc-500/90 leading-relaxed mb-10 font-sans">
+      <p className="text-[13px] text-zinc-500/90 leading-relaxed mb-10 font-sans relative z-10">
         {project.description}
       </p>
 
-      <div className="mt-auto">
+      <div className="mt-auto relative z-10">
         <div className="flex flex-col gap-4">
           <div className="space-y-2">
-            {previewTodos.map(todo => (
-              <div 
-                key={todo.id} 
-                className="flex items-start gap-3 group/todo"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleTodo(project.id, todo.id);
-                }}
-              >
-                <button className="mt-[3px] text-zinc-300 group-hover/todo:text-zinc-400 transition-colors focus:outline-none">
-                  {todo.completed ? (
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <rect x="0.5" y="0.5" width="11" height="11" rx="2.5" fill="currentColor" fillOpacity="0.2" stroke="currentColor"/>
-                      <path d="M3.5 6L5.5 8L8.5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  ) : (
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" className="opacity-60 group-hover/todo:opacity-100 transition-opacity">
-                      <rect x="0.5" y="0.5" width="11" height="11" rx="2.5" stroke="currentColor" strokeWidth="1"/>
-                    </svg>
-                  )}
-                </button>
-                <span className={`text-xs leading-relaxed ${todo.completed ? 'text-zinc-400 line-through decoration-zinc-200/60' : 'text-zinc-600'}`}>
-                  {todo.text}
-                </span>
-              </div>
-            ))}
+            <AnimatePresence initial={false}>
+              {previewTodos.map(todo => (
+                <motion.div 
+                  key={todo.id} 
+                  initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                  animate={{ opacity: 1, height: 'auto', marginTop: 8 }}
+                  exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                  transition={{ opacity: { duration: 0.2 }, height: { duration: 0.2 } }}
+                  className="flex items-start gap-3 group/todo overflow-hidden first:mt-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleTodo(project.id, todo.id);
+                  }}
+                >
+                  <button className="mt-[3px] text-zinc-300 group-hover/todo:text-zinc-400 transition-colors focus:outline-none shrink-0">
+                    {todo.completed ? (
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="0.5" y="0.5" width="11" height="11" rx="2.5" fill="currentColor" fillOpacity="0.2" stroke="currentColor"/>
+                        <path d="M3.5 6L5.5 8L8.5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    ) : (
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" className="opacity-60 group-hover/todo:opacity-100 transition-opacity">
+                        <rect x="0.5" y="0.5" width="11" height="11" rx="2.5" stroke="currentColor" strokeWidth="1"/>
+                      </svg>
+                    )}
+                  </button>
+                  <span className={`text-xs leading-relaxed ${todo.completed ? 'text-zinc-400 line-through decoration-zinc-200/60' : 'text-zinc-600'}`}>
+                    {todo.text}
+                  </span>
+                </motion.div>
+              ))}
+            </AnimatePresence>
 
             {isAddingTodo ? (
               <form 

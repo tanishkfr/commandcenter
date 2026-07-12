@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { projects } from '../data';
 import { ProjectCard } from './ProjectCard';
 import { motion } from 'motion/react';
@@ -6,6 +6,12 @@ import { ProjectCategory, ProjectStatus } from '../types';
 
 export function Dashboard() {
   const [projectList, setProjectList] = useState(projects);
+  const [time, setTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const handleToggleTodo = (projectId: string, todoId: string) => {
     setProjectList(prev => prev.map(p => {
@@ -48,21 +54,45 @@ export function Dashboard() {
   const categories: ProjectCategory[] = ['Products', 'Research', 'Systems', 'Tools'];
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] text-zinc-900 font-sans p-8 md:p-16 lg:p-24 selection:bg-zinc-200 selection:text-zinc-900 box-border">
-      <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen bg-[#FAFAFA] text-zinc-900 font-sans selection:bg-zinc-200 selection:text-zinc-900 box-border relative">
+      {/* Subtle canvas dot grid */}
+      <div 
+        className="absolute inset-0 z-0 pointer-events-none" 
+        style={{ 
+          backgroundImage: 'radial-gradient(circle, #e4e4e7 1px, transparent 1px)', 
+          backgroundSize: '24px 24px', 
+          opacity: 0.6 
+        }}
+      />
+      {/* Soft vignette fade */}
+      <div className="fixed inset-0 z-0 pointer-events-none bg-[radial-gradient(circle_at_center,transparent_0%,#FAFAFA_100%)] opacity-80" />
+      
+      <div className="relative z-10 max-w-4xl mx-auto p-8 md:p-16 lg:p-24">
         
         {/* Header & Overview */}
         <header className="mb-32 flex flex-col items-start gap-8">
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-          >
-            <h1 className="text-3xl md:text-4xl font-display font-semibold tracking-tight text-zinc-900 mb-3">
-              Tanishk's Portfolio
-            </h1>
-            <p className="text-[13px] md:text-sm text-zinc-500 tracking-wide font-sans">Selected Works & Interactions</p>
-          </motion.div>
+          <div className="w-full flex justify-between items-start">
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <h1 className="text-3xl md:text-4xl font-display font-semibold tracking-tight text-zinc-900 mb-3">
+                Tanishk's Portfolio
+              </h1>
+              <p className="text-[13px] md:text-sm text-zinc-500 tracking-wide font-sans">Selected Works & Interactions</p>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 1, delay: 0.2 }}
+              className="hidden md:flex flex-col items-end text-xs text-zinc-400 font-mono tracking-widest uppercase"
+            >
+              <span>{time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' })}</span>
+              <span className="mt-1">{time.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+            </motion.div>
+          </div>
 
           <motion.div 
             initial={{ opacity: 0, y: 10 }}
