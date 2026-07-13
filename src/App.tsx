@@ -1,6 +1,6 @@
 import { CSSProperties, FormEvent, ReactNode, useEffect, useRef, useState } from 'react';
 import {
-  ArrowRight, ArrowUp, ArrowUpRight, Bookmark, Brain, Check, CheckCircle2, ChevronDown, Circle, Clock3,
+  AlertTriangle, ArrowRight, ArrowUp, ArrowUpRight, Bookmark, Brain, Check, CheckCircle2, ChevronDown, Circle, Clock3,
   Download, Edit3, Feather, CircleHelp, FileInput, Figma, Github, History, Info, Layers3, Link2, Loader2, MessageCircleMore,
   Plus, RotateCcw, Search, Settings2, ShieldCheck, Sparkles, Trash2, WandSparkles, X
 } from 'lucide-react';
@@ -26,9 +26,10 @@ function Sidebar({data,surface,onSurface,onProject,onNewProject,onSettings}:{
   data:Bootstrap;surface:Surface;onSurface:(value:Surface)=>void;onProject:(id:string)=>void;onNewProject:()=>void;onSettings:()=>void
 }){
   const nav=[{id:'studio' as const,label:'Studio',icon:MessageCircleMore},{id:'memory' as const,label:'Memory',icon:Brain},{id:'history' as const,label:'History',icon:History}];
+  const accepted=data.artifacts.filter(item=>item.reviewStatus==='accepted').length;const pending=data.artifacts.filter(item=>item.reviewStatus==='pending').length;
   return <aside className="sidebar">
     <div className="sidebar-top"><Mark/></div>
-    <nav className="primary-nav" aria-label="Workspace">{nav.map(({id,label,icon:Icon})=><button key={id} className={surface===id?'nav-item active':'nav-item'} onClick={()=>onSurface(id)}><Icon size={17}/><span>{label}</span>{id==='memory'&&<span className="nav-count">{data.artifacts.length}</span>}</button>)}</nav>
+    <nav className="primary-nav" aria-label="Workspace">{nav.map(({id,label,icon:Icon})=><button key={id} className={surface===id?'nav-item active':'nav-item'} onClick={()=>onSurface(id)}><Icon size={17}/><span>{label}</span>{id==='memory'&&<span className={'nav-count '+(pending?'has-review':'')} title={pending?pending+' awaiting review':''}>{accepted}{pending?' +'+pending:''}</span>}</button>)}</nav>
     <div className="sidebar-projects">
       <div className="sidebar-label"><span>Projects</span><button aria-label="New project" onClick={onNewProject}><Plus size={13}/></button></div>
       {data.projects.map(project=><button key={project.id} className={project.id===data.project.id?'project-nav active':'project-nav'} onClick={()=>onProject(project.id)}>
@@ -63,11 +64,13 @@ function SessionMenu({sessions,active,onSelect,onNew,onImport}:{
   </div>
 }
 
-function ContextRail({data,onSource,onArtifact}: {data:Bootstrap;onSource:()=>void;onArtifact:(artifact:MemoryArtifact)=>void}){
-  const memories=data.artifacts.filter(item=>item.status==='active').slice(0,4);
+function ContextRail({data,onSource,onArtifact,onMemory}: {data:Bootstrap;onSource:()=>void;onArtifact:(artifact:MemoryArtifact)=>void;onMemory:()=>void}){
+  const accepted=data.artifacts.filter(item=>item.reviewStatus==='accepted');const pending=data.artifacts.filter(item=>item.reviewStatus==='pending');
+  const memories=accepted.filter(item=>item.status==='active').slice(0,4);const questions=accepted.filter(item=>item.type==='question'&&item.status==='active').length;const tensions=pending.filter(item=>item.relatedArtifactIds.length).length;
   return <aside className="context-rail">
     <div className="context-heading"><div><Sparkles size={14}/><span>Project context</span></div><button onClick={onSource} aria-label="Add source"><Plus size={14}/></button></div>
-    <section className="context-block"><p className="eyebrow">The project</p><p className="thread-summary">{data.project.description||'Give this project a description so Studio can understand its intent.'}</p><div className="thread-evolution"><span>{data.sessions.length} conversations</span><ArrowRight size={11}/><strong>{data.artifacts.length} memories</strong></div></section>
+    <section className="context-block"><p className="eyebrow">The project</p><p className="thread-summary">{data.project.description||'Give this project a description so Studio can understand its intent.'}</p><div className="thread-evolution"><span>{data.sessions.length} conversations</span><ArrowRight size={11}/><strong>{accepted.length} memories</strong></div></section>
+    <section className="context-block project-pulse"><div className="section-title"><p className="eyebrow">Project pulse</p>{pending.length>0&&<button onClick={onMemory}>Review</button>}</div><div className="pulse-grid"><span><strong>{pending.length}</strong><small>to review</small></span><span><strong>{questions}</strong><small>open questions</small></span><span><strong>{tensions}</strong><small>possible changes</small></span></div></section>
     <section className="context-block context-list"><p className="eyebrow">Taking shape</p>
       {memories.length?memories.map(item=><button className="context-item" key={item.id} onClick={()=>onArtifact(item)}><span className={'artifact-icon '+artifactClass(item.type)}>{artifactIcons[item.type]}</span><span><small>{item.type}</small>{item.title}</span></button>):<p className="empty-hint">Capture a conversation and its durable ideas will gather here.</p>}
     </section>
@@ -88,8 +91,8 @@ function Composer({disabled,thinking,onSend,onCapture}: {disabled:boolean;thinki
   </form><div className="capture-row"><span>{thinking?'Thinking with project memory…':'Everything here stays in this project'}</span><button className="capture-button" disabled={disabled||thinking} onClick={onCapture}><Sparkles size={14}/><span>Capture session</span><kbd>Ctrl Shift S</kbd></button></div></div>
 }
 
-function StudioView({data,session,thinking,onSend,onCapture,onSession,onNewSession,onImport,onSource,onArtifact}:{
-  data:Bootstrap;session:StudioSession|null;thinking:boolean;onSend:(text:string)=>void;onCapture:()=>void;onSession:(id:string)=>void;onNewSession:()=>void;onImport:()=>void;onSource:()=>void;onArtifact:(artifact:MemoryArtifact)=>void
+function StudioView({data,session,thinking,onSend,onCapture,onSession,onNewSession,onImport,onSource,onArtifact,onMemory}:{
+  data:Bootstrap;session:StudioSession|null;thinking:boolean;onSend:(text:string)=>void;onCapture:()=>void;onSession:(id:string)=>void;onNewSession:()=>void;onImport:()=>void;onSource:()=>void;onArtifact:(artifact:MemoryArtifact)=>void;onMemory:()=>void
 }){
   const end=useRef<HTMLDivElement>(null);useEffect(()=>{end.current?.scrollIntoView({behavior:'smooth',block:'nearest'})},[session?.messages.length,thinking]);
   const date=new Date();
@@ -106,15 +109,17 @@ function StudioView({data,session,thinking,onSend,onCapture,onSession,onNewSessi
       </motion.article>)}
       {thinking&&<div className="thinking"><span/><span/><span/></div>}<div ref={end}/>
     </div>
-  </div><Composer disabled={!session} thinking={thinking} onSend={onSend} onCapture={onCapture}/></main><ContextRail data={data} onSource={onSource} onArtifact={onArtifact}/></div>
+  </div><Composer disabled={!session} thinking={thinking} onSend={onSend} onCapture={onCapture}/></main><ContextRail data={data} onSource={onSource} onArtifact={onArtifact} onMemory={onMemory}/></div>
 }
 
-function MemoryView({data,onArtifact}: {data:Bootstrap;onArtifact:(artifact:MemoryArtifact)=>void}){
+function MemoryView({data,onArtifact,onReview}: {data:Bootstrap;onArtifact:(artifact:MemoryArtifact)=>void;onReview:(id:string,action:'accept'|'reject')=>void}){
   const [filter,setFilter]=useState<'all'|ArtifactType>('all');
-  const visible=data.artifacts.filter(item=>filter==='all'||item.type===filter);
-  return <main className="quiet-surface"><div className="surface-intro"><p className="eyebrow">{data.project.name} · {data.artifacts.length} durable memories</p><h1>The project remembers<br/>how it became itself.</h1><p>Decisions, principles, questions, experiments, and abandoned directions remain connected to where they came from.</p></div>
+  const pending=data.artifacts.filter(item=>item.reviewStatus==='pending');const accepted=data.artifacts.filter(item=>item.reviewStatus==='accepted');
+  const visible=accepted.filter(item=>filter==='all'||item.type===filter);
+  return <main className="quiet-surface"><div className="surface-intro"><p className="eyebrow">{data.project.name} · {accepted.length} durable memories</p><h1>The project remembers<br/>how it became itself.</h1><p>Decisions, principles, questions, experiments, and abandoned directions remain connected to where they came from.</p></div>
+    {pending.length>0&&<section className="review-inbox"><div className="review-heading"><div><p className="eyebrow">Memory review</p><h2>Choose what becomes project truth.</h2><span>{pending.length} captured {pending.length===1?'memory':'memories'} awaiting your judgment.</span></div><span className="review-count">{pending.length}</span></div><div className="review-list">{pending.map(item=><div className="review-card" key={item.id}><button className="review-open" onClick={()=>onArtifact(item)}><span className={'memory-glyph '+artifactClass(item.type)}>{artifactIcons[item.type]}</span><span><small>{item.origin==='ai'?'NVIDIA NIM':'Local extraction'} · {Math.round(item.confidence*100)}%</small><strong>{item.title}</strong><em>{item.body}</em>{item.relatedArtifactIds.length>0&&<b><AlertTriangle size={11}/>May change an existing direction</b>}</span><ArrowUpRight size={13}/></button><div className="review-actions"><button onClick={()=>onReview(item.id,'reject')}>Dismiss</button><button className="accept" onClick={()=>onReview(item.id,'accept')}><Check size={12}/>Keep in memory</button></div></div>)}</div></section>}
     <div className="memory-toolbar">{(['all','decision','question','principle','experiment','action'] as const).map(type=><button key={type} className={filter===type?'active':''} onClick={()=>setFilter(type)}>{type==='all'?'All memory':type+'s'}</button>)}<a className="memory-ask" href="/api/studio/export"><Download size={13}/>Export</a></div>
-    {visible.length?<div className="memory-story"><div className="memory-period"><span>Now</span><small>Project memory</small></div><div className="memory-items">{visible.map((item,index)=><motion.button layout initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} transition={{delay:index*.035}} key={item.id} className="memory-card" onClick={()=>onArtifact(item)}><span className={'memory-glyph '+artifactClass(item.type)}>{artifactIcons[item.type]}</span><span><small>{item.type} · {Math.round(item.confidence*100)}%</small><strong>{item.title}</strong><em>{item.body||'No additional rationale yet.'}</em></span><ArrowUpRight size={13}/></motion.button>)}</div></div>:<div className="large-empty"><Brain size={22}/><h3>No memory here yet</h3><p>Have a conversation in Studio, then capture the session. Its durable ideas will appear here.</p></div>}
+    {visible.length?<div className="memory-story"><div className="memory-period"><span>Now</span><small>Project memory</small></div><div className="memory-items">{visible.map((item,index)=><motion.button layout initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} transition={{delay:index*.035}} key={item.id} className="memory-card" onClick={()=>onArtifact(item)}><span className={'memory-glyph '+artifactClass(item.type)}>{artifactIcons[item.type]}</span><span><small>{item.type} · {Math.round(item.confidence*100)}%</small><strong>{item.title}</strong><em>{item.body||'No additional rationale yet.'}</em></span><ArrowUpRight size={13}/></motion.button>)}</div></div>:<div className="large-empty"><Brain size={22}/><h3>No reviewed memory yet</h3><p>Capture a conversation, then keep the decisions and ideas that should become durable project context.</p></div>}
   </main>
 }
 
@@ -188,20 +193,24 @@ function SettingsDialog({data,onClose,onProject,onOnboarding}: {data:Bootstrap;o
   </DialogShell>
 }
 
-function ArtifactDialog({artifact,onClose,onSave,onDelete}: {artifact:MemoryArtifact;onClose:()=>void;onSave:(item:MemoryArtifact)=>void;onDelete:(id:string)=>void}){
-  const [title,setTitle]=useState(artifact.title);const [body,setBody]=useState(artifact.body);const [type,setType]=useState(artifact.type);const [status,setStatus]=useState(artifact.status);const [saving,setSaving]=useState(false);
+function ArtifactDialog({artifact,data,onClose,onSave,onDelete,onReview,onOpenSession}: {artifact:MemoryArtifact;data:Bootstrap;onClose:()=>void;onSave:(item:MemoryArtifact)=>void;onDelete:(id:string)=>void;onReview:(id:string,action:'accept'|'reject')=>void;onOpenSession:(id:string)=>void}){
+  const [title,setTitle]=useState(artifact.title);const [body,setBody]=useState(artifact.body);const [type,setType]=useState(artifact.type);const [status,setStatus]=useState(artifact.status);const [saving,setSaving]=useState(false);const [confirmingDelete,setConfirmingDelete]=useState(false);
+  const sourceSession=data.sessions.find(item=>item.id===artifact.sessionId);const sourceMessages=sourceSession?.messages.filter(message=>artifact.sourceMessageIds.includes(message.id))||[];const related=data.artifacts.filter(item=>artifact.relatedArtifactIds.includes(item.id));
   const save=async()=>{setSaving(true);try{onSave(await studioApi.updateArtifact(artifact.id,{title,body,type,status}))}finally{setSaving(false)}};
   return <DialogShell onClose={onClose} wide><div className="modal-heading"><div><p className="eyebrow">Project memory</p><h2>Edit what the project remembers</h2><span>Confidence {Math.round(artifact.confidence*100)}% · {artifact.sourceMessageIds.length} source messages</span></div><button className="icon-button" onClick={onClose} aria-label="Close dialog"><X size={17}/></button></div>
     <div className="artifact-form-row"><label><span>Type</span><select value={type} onChange={e=>setType(e.target.value as ArtifactType)}>{Object.keys(artifactIcons).map(value=><option key={value}>{value}</option>)}</select></label><label><span>Status</span><select value={status} onChange={e=>setStatus(e.target.value as any)}><option>active</option><option>resolved</option><option>archived</option></select></label></div>
     <label><span>Title</span><input value={title} onChange={e=>setTitle(e.target.value)}/></label><label><span>Rationale and context</span><textarea value={body} onChange={e=>setBody(e.target.value)} rows={6}/></label>
-    <div className="modal-actions split"><button className="danger-button" onClick={()=>onDelete(artifact.id)}><Trash2 size={13}/>Delete</button><div><button className="text-button" onClick={onClose}>Cancel</button><button className="save-memory" onClick={save} disabled={saving}>{saving?<Loader2 className="spin" size={13}/>:<Check size={13}/>}Save memory</button></div></div>
+    <div className="memory-trust"><span><ShieldCheck size={14}/><strong>{artifact.origin==='ai'?'Extracted by NVIDIA NIM':artifact.origin==='local'?'Extracted locally':'Existing memory'}</strong><small>{artifact.reviewStatus==='accepted'?'Reviewed and included in AI context':artifact.reviewStatus==='pending'?'Waiting for your review':'Dismissed from project context'}</small></span><span><Clock3 size={14}/><strong>{relativeDate(artifact.createdAt)}</strong><small>{sourceSession?.title||'No source conversation'}</small></span></div>
+    {related.length>0&&<section className="memory-tension"><AlertTriangle size={16}/><div><strong>Possible change in direction</strong><p>Compare this with {related.map(item=>item.title).join(', ')} before accepting it. Studio will not replace earlier decisions automatically.</p></div></section>}
+    <section className="memory-provenance"><div><p className="eyebrow">Provenance</p>{sourceSession&&<button onClick={()=>onOpenSession(sourceSession.id)}>Open conversation<ArrowUpRight size={12}/></button>}</div>{sourceMessages.length?sourceMessages.map(message=><blockquote key={message.id}><small>{message.role==='user'?'You':'Studio'} · {new Date(message.createdAt).toLocaleString()}</small><p>{message.content}</p></blockquote>):<p className="empty-hint">The original message is not available in this local history.</p>}</section>
+    <div className="modal-actions split"><div className="delete-confirm">{!confirmingDelete?<button className="danger-button" onClick={()=>setConfirmingDelete(true)}><Trash2 size={13}/>Delete</button>:<><span>Delete permanently?</span><button className="text-button" onClick={()=>setConfirmingDelete(false)}>Cancel</button><button className="danger-button confirmed" onClick={()=>onDelete(artifact.id)}>Confirm</button></>}</div><div>{artifact.reviewStatus==='pending'&&<><button className="text-button" onClick={()=>onReview(artifact.id,'reject')}>Dismiss</button><button className="review-accept" onClick={()=>onReview(artifact.id,'accept')}><Check size={13}/>Accept</button></>}<button className="text-button" onClick={onClose}>Cancel</button><button className="save-memory" onClick={save} disabled={saving}>{saving?<Loader2 className="spin" size={13}/>:<Check size={13}/>}Save memory</button></div></div>
   </DialogShell>
 }
 
-function CaptureDialog({state,onClose,onMemory}: {state:{status:'working'|'done';artifacts:MemoryArtifact[];mode?:string};onClose:()=>void;onMemory:()=>void}){
+function CaptureDialog({state,onClose,onMemory,onReview}: {state:{status:'working'|'done';artifacts:MemoryArtifact[];mode?:string};onClose:()=>void;onMemory:()=>void;onReview:(id:string,action:'accept'|'reject')=>void}){
   return <DialogShell onClose={onClose} wide>{state.status==='working'?<div className="capture-working"><div className="capture-orbit"><span/><Sparkles size={22}/></div><h2>Letting the conversation settle…</h2><p>Finding what changed, what matters, and what should stay with this project.</p></div>:<>
-    <div className="modal-heading"><div><span className="capture-complete"><CheckCircle2 size={13}/>Session captured · {state.mode}</span><h2>This is what the project will remember.</h2><span>Open any item later to refine, resolve, archive, or delete it.</span></div><button className="icon-button" onClick={onClose} aria-label="Close dialog"><X size={17}/></button></div>
-    <div className="capture-grid">{state.artifacts.map(item=><div className="captured-item" key={item.id}><span className={'artifact-icon '+artifactClass(item.type)}>{artifactIcons[item.type]}</span><span><small>{item.type}</small><strong>{item.title}</strong><em>{item.body}</em></span></div>)}</div>
+    <div className="modal-heading"><div><span className="capture-complete"><CheckCircle2 size={13}/>Session captured · {state.mode}</span><h2>Choose what the project should remember.</h2><span>Review each candidate now, or return to the memory inbox later.</span></div><button className="icon-button" onClick={onClose} aria-label="Close dialog"><X size={17}/></button></div>
+    <div className="capture-grid">{state.artifacts.map(item=><div className={'captured-item '+item.reviewStatus} key={item.id}><span className={'artifact-icon '+artifactClass(item.type)}>{artifactIcons[item.type]}</span><span><small>{item.type}{item.relatedArtifactIds.length?' · possible change':''}</small><strong>{item.title}</strong><em>{item.body}</em>{item.reviewStatus==='pending'?<span className="capture-review"><button onClick={()=>onReview(item.id,'reject')}>Dismiss</button><button onClick={()=>onReview(item.id,'accept')}><Check size={11}/>Keep</button></span>:<b className="capture-reviewed">{item.reviewStatus==='accepted'?'Kept in memory':'Dismissed'}</b>}</span></div>)}</div>
     <div className="modal-actions"><button className="text-button" onClick={onClose}>Keep talking</button><button className="save-memory" onClick={onMemory}><Brain size={13}/>View project memory</button></div>
   </>}</DialogShell>
 }
@@ -229,20 +238,21 @@ export default function App(){
   const captureSession=async()=>{if(!session||thinking||!session.messages.length)return;setCapture({status:'working',artifacts:[]});try{const result=await studioApi.capture(session.id);setCapture({status:'done',artifacts:result.artifacts,mode:result.mode});const fresh=await studioApi.bootstrap(data?.project.id);setData(fresh);setSession(await studioApi.getSession(session.id))}catch(error:any){setCapture(null);showToast(error.message)}};
   const completeDialog=async(value:any)=>{const previous=dialog;setDialog(null);if(previous==='project')await load(value.project.id,value.session.id);else if(previous==='session'||previous==='import'){await load(data?.project.id,value.id);setSurface('studio')}else if(previous==='source'){await load(data?.project.id,session?.id);showToast('Source added to project context')}};
   const saveArtifact=async(item:MemoryArtifact)=>{setArtifact(null);await load(data?.project.id,session?.id);showToast('Project memory updated')};
+  const reviewArtifact=async(id:string,action:'accept'|'reject')=>{try{const reviewed=await studioApi.reviewArtifact(id,action);setArtifact(current=>current?.id===id?reviewed:current);setCapture(current=>current?{...current,artifacts:current.artifacts.map(item=>item.id===id?reviewed:item)}:current);const fresh=await studioApi.bootstrap(data?.project.id);setData(fresh);showToast(action==='accept'?'Memory added to project context':'Memory dismissed')}catch(error:any){showToast(error.message||'Could not review memory')}};
   const deleteArtifact=async(id:string)=>{await studioApi.deleteArtifact(id);setArtifact(null);await load(data?.project.id,session?.id);showToast('Memory removed')};
   const openResult=async(result:SearchResult)=>{setSearch(false);if(result.kind==='conversation'&&result.sessionId)await selectSession(result.sessionId);else if(result.kind==='artifact'){const item=data?.artifacts.find(a=>a.id===result.id);if(item)setArtifact(item);setSurface('memory')}else if(result.kind==='source'){const source=data?.sources.find(item=>item.id===result.id);if(source?.url)window.open(source.url,'_blank','noopener,noreferrer')}};
   if(loading&&!data)return <div className="app-loading"><Mark/><Loader2 className="spin" size={18}/><span>Opening your studio…</span></div>;
   if(!data)return <div className="app-loading">Could not open the studio.</div>;
   return <div className="app-shell"><Sidebar data={data} surface={surface} onSurface={setSurface} onProject={selectProject} onNewProject={()=>setDialog('project')} onSettings={()=>setDialog('settings')}/><div className="workspace-shell"><Topbar data={data} onSearch={()=>setSearch(true)} onSettings={()=>setDialog('settings')} onHelp={()=>setOnboarding(true)}/><AnimatePresence mode="wait"><motion.div key={surface} className="surface-wrap" initial={{opacity:0,y:4}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-3}}>
-    {surface==='studio'&&<StudioView data={data} session={session} thinking={thinking} onSend={send} onCapture={captureSession} onSession={selectSession} onNewSession={()=>setDialog('session')} onImport={()=>setDialog('import')} onSource={()=>setDialog('source')} onArtifact={setArtifact}/>}
-    {surface==='memory'&&<MemoryView data={data} onArtifact={setArtifact}/>}
+    {surface==='studio'&&<StudioView data={data} session={session} thinking={thinking} onSend={send} onCapture={captureSession} onSession={selectSession} onNewSession={()=>setDialog('session')} onImport={()=>setDialog('import')} onSource={()=>setDialog('source')} onArtifact={setArtifact} onMemory={()=>setSurface('memory')}/>}
+    {surface==='memory'&&<MemoryView data={data} onArtifact={setArtifact} onReview={reviewArtifact}/> }
     {surface==='history'&&<HistoryView data={data} onSession={selectSession} onArtifact={setArtifact}/>}
   </motion.div></AnimatePresence></div>
   <AnimatePresence>
     {dialog&&dialog!=='settings'&&<SimpleDialog type={dialog} data={data} onClose={()=>setDialog(null)} onDone={completeDialog}/>}
     {dialog==='settings'&&<SettingsDialog data={data} onClose={()=>setDialog(null)} onProject={async()=>{await load(data.project.id,session?.id);showToast('Project updated')}} onOnboarding={()=>{setDialog(null);setOnboarding(true)}}/>}
-    {artifact&&<ArtifactDialog artifact={artifact} onClose={()=>setArtifact(null)} onSave={saveArtifact} onDelete={deleteArtifact}/>}
-    {capture&&<CaptureDialog state={capture} onClose={()=>setCapture(null)} onMemory={()=>{setCapture(null);setSurface('memory')}}/>}
+    {artifact&&<ArtifactDialog artifact={artifact} data={data} onClose={()=>setArtifact(null)} onSave={saveArtifact} onDelete={deleteArtifact} onReview={reviewArtifact} onOpenSession={async id=>{setArtifact(null);await selectSession(id)}}/>}
+    {capture&&<CaptureDialog state={capture} onClose={()=>setCapture(null)} onMemory={()=>{setCapture(null);setSurface('memory')}} onReview={reviewArtifact}/> }
     {search&&<SearchDialog data={data} onClose={()=>setSearch(false)} onResult={openResult}/>}
     {onboarding&&<Onboarding data={data} onClose={()=>setOnboarding(false)} onConfigured={()=>load(data.project.id,session?.id)}/>}
     {toast&&<motion.div className="toast" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} exit={{opacity:0}}>{toast}</motion.div>}

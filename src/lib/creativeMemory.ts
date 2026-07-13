@@ -4,12 +4,14 @@ import path from 'path';
 
 export type ArtifactType = 'decision' | 'principle' | 'question' | 'idea' | 'experiment' | 'reference' | 'risk' | 'action' | 'abandoned';
 export type ArtifactStatus = 'active' | 'resolved' | 'archived';
+export type ArtifactReviewStatus = 'pending' | 'accepted' | 'rejected';
+export type ArtifactOrigin = 'ai' | 'local' | 'manual';
 export type SourceType = 'link' | 'figma' | 'github' | 'note' | 'document';
 
 export interface StudioProject { id:string; name:string; description:string; color:string; createdAt:string; updatedAt:string }
 export interface StudioMessage { id:string; role:'user'|'assistant'; content:string; createdAt:string; citedArtifactIds:string[] }
 export interface StudioSession { id:string; projectId:string; title:string; createdAt:string; updatedAt:string; capturedAt:string|null; messages:StudioMessage[] }
-export interface MemoryArtifact { id:string; projectId:string; sessionId:string|null; type:ArtifactType; title:string; body:string; status:ArtifactStatus; tags:string[]; confidence:number; sourceMessageIds:string[]; createdAt:string; updatedAt:string }
+export interface MemoryArtifact { id:string; projectId:string; sessionId:string|null; type:ArtifactType; title:string; body:string; status:ArtifactStatus; reviewStatus:ArtifactReviewStatus; origin:ArtifactOrigin; relatedArtifactIds:string[]; tags:string[]; confidence:number; sourceMessageIds:string[]; createdAt:string; updatedAt:string }
 export interface StudioSource { id:string; projectId:string; type:SourceType; title:string; url:string; note:string; createdAt:string }
 export interface TimelineEvent { id:string; projectId:string; type:string; title:string; detail:string; sessionId:string|null; artifactId:string|null; createdAt:string }
 export interface CreativeMemoryState { version:number; activeProjectId:string; projects:StudioProject[]; sessions:StudioSession[]; artifacts:MemoryArtifact[]; sources:StudioSource[]; events:TimelineEvent[] }
@@ -22,9 +24,35 @@ const now = () => new Date().toISOString();
 const daysAgo = (days:number) => new Date(Date.now() - days * 86400000).toISOString();
 const makeId = (prefix:string) => prefix + '_' + randomUUID().replace(/-/g, '').slice(0, 12);
 
+export function normalizeCreativeMemoryState(state:CreativeMemoryState):CreativeMemoryState {
+  state.version=2;
+  state.artifacts=(state.artifacts||[]).map(artifact=>({
+    ...artifact,
+    reviewStatus:artifact.reviewStatus||'accepted',
+    origin:artifact.origin||'manual',
+    relatedArtifactIds:artifact.relatedArtifactIds||[]
+  }));
+  return state;
+}
+
+const MEMORY_STOP_WORDS=new Set(['about','after','again','against','because','before','being','between','could','from','have','into','more','only','other','should','that','their','there','these','this','through','using','very','what','when','where','which','while','with','would']);
+const memoryTerms=(value:string)=>Array.from(new Set(value.toLowerCase().split(/[^a-z0-9]+/).filter(term=>term.length>3&&!MEMORY_STOP_WORDS.has(term))));
+
+export function findRelatedArtifactIds(candidate:Pick<MemoryArtifact,'id'|'projectId'|'type'|'title'|'body'>,artifacts:MemoryArtifact[]) {
+  const candidateTerms=memoryTerms(candidate.title+' '+candidate.body);
+  const changeTypes=new Set<ArtifactType>(['decision','principle','abandoned']);
+  if(!changeTypes.has(candidate.type)||!candidateTerms.length)return [];
+  return artifacts.filter(item=>item.id!==candidate.id&&item.projectId===candidate.projectId&&item.status==='active'&&item.reviewStatus==='accepted'&&changeTypes.has(item.type))
+    .map(item=>{const terms=memoryTerms(item.title+' '+item.body);const overlap=candidateTerms.filter(term=>terms.includes(term)).length;return{item,overlap}})
+    .filter(({overlap})=>overlap>=2)
+    .sort((a,b)=>b.overlap-a.overlap)
+    .slice(0,3)
+    .map(({item})=>item.id);
+}
+
 function seedState():CreativeMemoryState {
   return {
-    version:1,
+    version:2,
     activeProjectId:'atlas',
     projects:[
       { id:'atlas', name:'Atlas', description:'Exploring spatial wayfinding without demanding attention.', color:'#df7257', createdAt:daysAgo(36), updatedAt:daysAgo(1) },
@@ -48,7 +76,7 @@ export function createFreshState():CreativeMemoryState {
   const timestamp=now();
   const project:StudioProject={ id:'my-first-project', name:'My first project', description:'A fresh space for your next idea.', color:'#796bb4', createdAt:timestamp, updatedAt:timestamp };
   const session:StudioSession={ id:'session_first', projectId:project.id, title:'First conversation', createdAt:timestamp, updatedAt:timestamp, capturedAt:null, messages:[] };
-  return { version:1, activeProjectId:project.id, projects:[project], sessions:[session], artifacts:[], sources:[], events:[] };
+  return { version:2, activeProjectId:project.id, projects:[project], sessions:[session], artifacts:[], sources:[], events:[] };
 }
 
 class CreativeMemoryStore {
@@ -62,7 +90,7 @@ class CreativeMemoryStore {
 
   private async read():Promise<CreativeMemoryState> {
     await this.ensure();
-    return JSON.parse(await fs.readFile(DATA_FILE, 'utf8')) as CreativeMemoryState;
+    return normalizeCreativeMemoryState(JSON.parse(await fs.readFile(DATA_FILE, 'utf8')) as CreativeMemoryState);
   }
 
   private async write(state:CreativeMemoryState) {
@@ -167,10 +195,10 @@ class CreativeMemoryStore {
     const project=state.projects.find(item=>item.id===projectId);
     const session=state.sessions.find(item=>item.id===sessionId);
     if (!project||!session) throw new Error('Project or session not found');
-    return { project, session, artifacts:state.artifacts.filter(item=>item.projectId===projectId&&item.status==='active').slice(-20), sources:state.sources.filter(item=>item.projectId===projectId).slice(-10) };
+    return { project, session, artifacts:state.artifacts.filter(item=>item.projectId===projectId&&item.status==='active'&&item.reviewStatus==='accepted').slice(-20), sources:state.sources.filter(item=>item.projectId===projectId).slice(-10) };
   }
 
-  async captureSession(sessionId:string,extracted:ExtractedArtifact[]) {
+  async captureSession(sessionId:string,extracted:ExtractedArtifact[],origin:ArtifactOrigin='local') {
     return this.mutate(state=>{
       const session=state.sessions.find(item=>item.id===sessionId);
       if (!session) throw new Error('Session not found');
@@ -184,7 +212,8 @@ class CreativeMemoryStore {
           existing.sourceMessageIds=Array.from(new Set([...existing.sourceMessageIds,...(item.sourceMessageIds||[])])); captured.push(existing);
           this.addEvent(state,session.projectId,'memory-strengthened',existing.title,'An existing memory was strengthened.',sessionId,existing.id);
         } else {
-          const artifact:MemoryArtifact={ id:makeId('memory'), projectId:session.projectId, sessionId, type:item.type, title:item.title.trim(), body:item.body?.trim()||'', status:'active', tags:item.tags||[], confidence:item.confidence??.75, sourceMessageIds:item.sourceMessageIds||[], createdAt:timestamp, updatedAt:timestamp };
+          const artifact:MemoryArtifact={ id:makeId('memory'), projectId:session.projectId, sessionId, type:item.type, title:item.title.trim(), body:item.body?.trim()||'', status:'active', reviewStatus:'pending', origin, relatedArtifactIds:[], tags:item.tags||[], confidence:item.confidence??.75, sourceMessageIds:item.sourceMessageIds||[], createdAt:timestamp, updatedAt:timestamp };
+          artifact.relatedArtifactIds=findRelatedArtifactIds(artifact,state.artifacts);
           state.artifacts.push(artifact); captured.push(artifact);
           this.addEvent(state,session.projectId,artifact.type,artifact.title,artifact.body||('A '+artifact.type+' was captured.'),sessionId,artifact.id);
         }
@@ -200,6 +229,19 @@ class CreativeMemoryStore {
       if (!artifact) throw new Error('Memory artifact not found');
       Object.assign(artifact,updates,{updatedAt:now()});
       this.addEvent(state,artifact.projectId,'memory-edited',artifact.title,'Project memory was edited.',artifact.sessionId||undefined,artifact.id);
+      return artifact;
+    });
+  }
+
+  async reviewArtifact(artifactId:string,action:'accept'|'reject') {
+    return this.mutate(state=>{
+      const artifact=state.artifacts.find(item=>item.id===artifactId);
+      if(!artifact)throw new Error('Memory artifact not found');
+      artifact.reviewStatus=action==='accept'?'accepted':'rejected';
+      if(action==='reject')artifact.status='archived';
+      else if(artifact.status==='archived')artifact.status='active';
+      artifact.updatedAt=now();
+      this.addEvent(state,artifact.projectId,action==='accept'?'memory-accepted':'memory-rejected',artifact.title,action==='accept'?'A captured memory was accepted into project context.':'A captured memory was dismissed.',artifact.sessionId||undefined,artifact.id);
       return artifact;
     });
   }
@@ -240,7 +282,7 @@ class CreativeMemoryStore {
     const state=await this.read(); const terms=query.toLowerCase().split(/\s+/).filter(term=>term.length>1);
     const score=(text:string)=>terms.reduce((sum,term)=>sum+(text.toLowerCase().includes(term)?2:0),0)+(text.toLowerCase().includes(query.toLowerCase())?4:0);
     const results:SearchResult[]=[];
-    for(const a of state.artifacts){if(projectId&&a.projectId!==projectId)continue;const s=score(a.title+' '+a.body+' '+a.tags.join(' '));if(s)results.push({id:a.id,kind:'artifact',projectId:a.projectId,sessionId:a.sessionId||undefined,title:a.title,snippet:a.body,meta:a.type+' · '+new Date(a.updatedAt).toLocaleDateString(),score:s})}
+    for(const a of state.artifacts){if(a.reviewStatus==='rejected'||(projectId&&a.projectId!==projectId))continue;const s=score(a.title+' '+a.body+' '+a.tags.join(' '));if(s)results.push({id:a.id,kind:'artifact',projectId:a.projectId,sessionId:a.sessionId||undefined,title:a.title,snippet:a.body,meta:a.type+' · '+new Date(a.updatedAt).toLocaleDateString(),score:s})}
     for(const session of state.sessions){if(projectId&&session.projectId!==projectId)continue;const text=session.messages.map(m=>m.content).join(' ');const s=score(session.title+' '+text);if(s)results.push({id:session.id,kind:'conversation',projectId:session.projectId,sessionId:session.id,title:session.title,snippet:text.slice(0,220),meta:'conversation · '+new Date(session.updatedAt).toLocaleDateString(),score:s})}
     for(const source of state.sources){if(projectId&&source.projectId!==projectId)continue;const s=score(source.title+' '+source.note+' '+source.url);if(s)results.push({id:source.id,kind:'source',projectId:source.projectId,title:source.title,snippet:source.note||source.url,meta:source.type,score:s})}
     return results.sort((a,b)=>b.score-a.score).slice(0,30);

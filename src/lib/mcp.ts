@@ -212,7 +212,7 @@ mcpServer.tool(
     const session=await creativeMemoryStore.getSession(sessionId);
     const context=await creativeMemoryStore.context(session.projectId,session.id);
     const extraction=await extractSessionMemory(context);
-    const artifacts=await creativeMemoryStore.captureSession(session.id,extraction.artifacts);
+    const artifacts=await creativeMemoryStore.captureSession(session.id,extraction.artifacts,extraction.mode);
     return textResult({mode:extraction.mode,artifacts});
   }
 );
@@ -229,6 +229,13 @@ mcpServer.tool(
   'Edit, resolve, or archive a durable project-memory artifact',
   {artifactId:z.string(),title:z.string().optional(),body:z.string().optional(),status:z.enum(['active','resolved','archived']).optional(),type:z.enum(['decision','principle','question','idea','experiment','reference','risk','action','abandoned']).optional(),tags:z.array(z.string()).optional()},
   async({artifactId,...updates})=>textResult(await creativeMemoryStore.updateArtifact(artifactId,updates))
+);
+
+mcpServer.tool(
+  'reviewMemoryArtifact',
+  'Accept a captured memory into project context or reject it from the review inbox',
+  {artifactId:z.string(),action:z.enum(['accept','reject'])},
+  async({artifactId,action})=>textResult(await creativeMemoryStore.reviewArtifact(artifactId,action))
 );
 
 // ----------------------------------------------------------------

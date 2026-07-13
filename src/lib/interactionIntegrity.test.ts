@@ -18,6 +18,8 @@ describe('visible interaction integrity',()=>{
     expect(iconButtons.length).toBeGreaterThan(0);
     for(const button of iconButtons)expect(button).toContain('aria-label=');
     expect(app).toContain('aria-label="Send message"');
+    expect(app).toContain('Delete permanently?');
+    expect(app).toContain("onReview(item.id,'accept')");
   });
 
   it('marks unavailable onboarding steps as disabled',()=>{

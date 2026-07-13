@@ -18,7 +18,8 @@ describe('Creative Memory MCP',()=>{
       'importCreativeConversation',
       'captureCreativeSession',
       'addCreativeSource',
-      'updateMemoryArtifact'
+      'updateMemoryArtifact',
+      'reviewMemoryArtifact'
     ]));
     await client.close();
   });

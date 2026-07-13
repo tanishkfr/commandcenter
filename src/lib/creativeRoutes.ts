@@ -83,7 +83,7 @@ export function createCreativeRouter(onChange:(event:string,data:unknown)=>void)
     if(!session.messages.length)throw new Error('There is no conversation to capture');
     const context=await creativeMemoryStore.context(session.projectId,session.id);
     const extraction=await extractSessionMemory(context);
-    const artifacts=await creativeMemoryStore.captureSession(session.id,extraction.artifacts);
+    const artifacts=await creativeMemoryStore.captureSession(session.id,extraction.artifacts,extraction.mode);
     onChange('session-captured',{sessionId:session.id,artifacts});
     res.status(201).json({artifacts,mode:extraction.mode});
   }));
@@ -91,6 +91,13 @@ export function createCreativeRouter(onChange:(event:string,data:unknown)=>void)
   router.patch('/artifacts/:id',handle(async(req,res)=>{
     const artifact=await creativeMemoryStore.updateArtifact(req.params.id,req.body||{});
     onChange('artifact-updated',artifact);res.json(artifact);
+  }));
+
+  router.post('/artifacts/:id/review',handle(async(req,res)=>{
+    const action=req.body?.action;
+    if(action!=='accept'&&action!=='reject')throw new Error('Review action must be accept or reject');
+    const artifact=await creativeMemoryStore.reviewArtifact(req.params.id,action);
+    onChange('artifact-reviewed',artifact);res.json(artifact);
   }));
 
   router.delete('/artifacts/:id',handle(async(req,res)=>{

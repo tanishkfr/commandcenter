@@ -25,6 +25,7 @@ export const studioApi={
   sendMessage:(sessionId:string,content:string)=>request<{user:StudioSession['messages'][number];assistant:StudioSession['messages'][number];mode:'ai'|'local'}>('/api/studio/sessions/'+sessionId+'/messages',{method:'POST',body:JSON.stringify({content})}),
   capture:(sessionId:string)=>request<{artifacts:MemoryArtifact[];mode:'ai'|'local'}>('/api/studio/sessions/'+sessionId+'/capture',{method:'POST'}),
   updateArtifact:(artifactId:string,input:Partial<{title:string;body:string;status:ArtifactStatus;type:ArtifactType;tags:string[]}>)=>request<MemoryArtifact>('/api/studio/artifacts/'+artifactId,{method:'PATCH',body:JSON.stringify(input)}),
+  reviewArtifact:(artifactId:string,action:'accept'|'reject')=>request<MemoryArtifact>('/api/studio/artifacts/'+artifactId+'/review',{method:'POST',body:JSON.stringify({action})}),
   deleteArtifact:(artifactId:string)=>request<{success:boolean}>('/api/studio/artifacts/'+artifactId,{method:'DELETE'}),
   addSource:(input:{projectId:string;type?:SourceType;title:string;url?:string;note?:string})=>request<StudioSource>('/api/studio/sources',{method:'POST',body:JSON.stringify(input)}),
   importText:(input:{projectId:string;title:string;text:string})=>request<StudioSession>('/api/studio/import',{method:'POST',body:JSON.stringify(input)}),
