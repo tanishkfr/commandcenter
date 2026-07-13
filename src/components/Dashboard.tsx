@@ -296,10 +296,10 @@ export function Dashboard() {
               transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
             >
               <h1 className="text-3xl md:text-4xl font-display font-semibold tracking-tight text-zinc-900 mb-3">
-                Command Center
+                Remainder
               </h1>
               
-              <p className="text-[13px] md:text-sm text-zinc-500 tracking-wide font-sans">Creative Studio Operating System</p>
+              <p className="text-[13px] md:text-sm text-zinc-500 tracking-wide font-sans">Project memory for creative work</p>
             </motion.div>
             
             <AnimatePresence>

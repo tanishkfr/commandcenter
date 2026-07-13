@@ -64,7 +64,7 @@ function seedState():CreativeMemoryState {
     activeProjectId:'atlas',
     projects:[
       { id:'atlas', name:'Atlas', description:'Exploring spatial wayfinding without demanding attention.', color:'#df7257', createdAt:daysAgo(36), updatedAt:daysAgo(1) },
-      { id:'pentimento', name:'Pentimento', description:'A living record of how creative work changes.', color:'#796bb4', createdAt:daysAgo(24), updatedAt:daysAgo(4) },
+      { id:'pentimento', name:'Pentimento', description:'A living record of how creative work changes.', color:'#A44932', createdAt:daysAgo(24), updatedAt:daysAgo(4) },
       { id:'invisible-interfaces', name:'Invisible Interfaces', description:'Designing systems that know when to disappear.', color:'#5e9b86', createdAt:daysAgo(18), updatedAt:daysAgo(6) }
     ],
     sessions:[{
@@ -82,7 +82,7 @@ function seedState():CreativeMemoryState {
 
 export function createFreshState():CreativeMemoryState {
   const timestamp=now();
-  const project:StudioProject={ id:'my-first-project', name:'My first project', description:'A fresh space for your next idea.', color:'#796bb4', createdAt:timestamp, updatedAt:timestamp };
+  const project:StudioProject={ id:'my-first-project', name:'My first project', description:'A fresh space for your next idea.', color:'#A44932', createdAt:timestamp, updatedAt:timestamp };
   const session:StudioSession={ id:'session_first', projectId:project.id, title:'First conversation', createdAt:timestamp, updatedAt:timestamp, capturedAt:null, messages:[] };
   return { version:2, activeProjectId:project.id, projects:[project], sessions:[session], artifacts:[], sources:[], events:[] };
 }
@@ -127,7 +127,7 @@ class CreativeMemoryStore {
         const snapshot=await this.readSnapshot();const result=await fn(snapshot.state);
         try{await this.write(snapshot.state,snapshot.etag);return result}catch(error){if(!isPreconditionError(error)||attempt===2)throw error}
       }
-      throw new Error('The studio changed in another request. Please try again.');
+      throw new Error('The project memory changed in another request. Please try again.');
     });
     this.queue=operation.catch(()=>undefined);return operation;
   }
@@ -163,7 +163,7 @@ class CreativeMemoryStore {
     return this.mutate(state=>{
       if (!input.name.trim()) throw new Error('Project name is required');
       const timestamp=now();
-      const project:StudioProject={ id:makeId('project'), name:input.name.trim(), description:input.description?.trim()||'', color:input.color||'#796bb4', createdAt:timestamp, updatedAt:timestamp };
+      const project:StudioProject={ id:makeId('project'), name:input.name.trim(), description:input.description?.trim()||'', color:input.color||'#A44932', createdAt:timestamp, updatedAt:timestamp };
       const session:StudioSession={ id:makeId('session'), projectId:project.id, title:'First conversation', createdAt:timestamp, updatedAt:timestamp, capturedAt:null, messages:[] };
       state.projects.push(project); state.sessions.push(session); state.activeProjectId=project.id;
       this.addEvent(state, project.id, 'project', 'Project created', 'A new creative memory began.', session.id);

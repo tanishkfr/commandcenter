@@ -3,7 +3,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { mcpServer } from './mcp.js';
 
-describe('Creative Memory MCP',()=>{
+describe('Remainder MCP',()=>{
   it('advertises the creative-memory tools used by onboarding',async()=>{
     const [clientTransport,serverTransport]=InMemoryTransport.createLinkedPair();
     const client=new Client({name:'creative-memory-test',version:'1.0.0'});

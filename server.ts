@@ -14,7 +14,7 @@ async function startServer(){
     app.use((await import('express')).default.static(distPath));
     app.get('*',(_req,res)=>res.sendFile(path.join(distPath,'index.html')));
   }
-  app.listen(port,'0.0.0.0',()=>console.log('Creative Memory Studio is running at http://localhost:'+port));
+  app.listen(port,'0.0.0.0',()=>console.log('Remainder is running at http://localhost:'+port));
 }
 
 startServer().catch(error=>{console.error(error);process.exitCode=1});
