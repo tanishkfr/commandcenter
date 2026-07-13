@@ -14,7 +14,7 @@ async function nimChat(options:{apiKey:string;model:string;messages:NimMessage[]
     method:'POST',
     headers:{Authorization:'Bearer '+options.apiKey,'Content-Type':'application/json',Accept:'application/json'},
     body:JSON.stringify({model:options.model,messages:options.messages,temperature:options.temperature??.35,top_p:.9,max_tokens:options.maxTokens??800,stream:false}),
-    signal:AbortSignal.timeout(45000)
+    signal:AbortSignal.timeout(Math.max(3000,Number(process.env.NVIDIA_TIMEOUT_MS||12000)))
   });
   const payload=await response.json().catch(()=>({})) as NimResponse;
   if(!response.ok)throw new Error('NVIDIA NIM request failed: '+(payload.error?.message||response.statusText||'Connection failed'));

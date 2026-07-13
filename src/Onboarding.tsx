@@ -28,7 +28,7 @@ export default function Onboarding({data,onClose,onConfigured}:Props){
 
   useEffect(()=>{studioApi.connectionStatus().then(next=>{setStatus(next);setModel(next.aiModel)}).catch(()=>setError('Connection details are unavailable for a moment. You can continue and return later.'))},[]);
   useEffect(()=>{const previous=document.activeElement as HTMLElement|null;const node=shellRef.current;if(!node)return;const items=()=>Array.prototype.slice.call(node.querySelectorAll<HTMLElement>('button:not([disabled]),a[href],input:not([disabled]),select:not([disabled])')) as HTMLElement[];window.setTimeout(()=>items()[0]?.focus(),0);const key=(event:KeyboardEvent)=>{if(event.key==='Escape'){event.preventDefault();onClose();return}if(event.key!=='Tab')return;const list=items();if(!list.length)return;const first=list[0],last=list[list.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}};node.addEventListener('keydown',key);return()=>{node.removeEventListener('keydown',key);previous?.focus()}},[onClose]);
-  const complete=()=>{localStorage.setItem('creative-memory-onboarding-v1','complete');onClose()};
+  const complete=()=>{localStorage.setItem('remainder-onboarding-v2','complete');onClose()};
   const next=()=>setStep(current=>Math.min(steps.length-1,current+1));
   const previous=()=>setStep(current=>Math.max(0,current-1));
 
@@ -54,7 +54,7 @@ export default function Onboarding({data,onClose,onConfigured}:Props){
   const configText=useMemo(()=>mcpConfig||JSON.stringify({
     mcpServers:{
       remainder:{
-        url:status?.mcpUrl||'http://localhost:3000/api/mcp/sse',
+        url:status?.mcpUrl||'http://localhost:3000/api/mcp',
         headers:{Authorization:'Bearer YOUR_GENERATED_TOKEN'}
       }
     }
@@ -86,7 +86,7 @@ export default function Onboarding({data,onClose,onConfigured}:Props){
             {step===0&&<button type="button" className="onboarding-primary" onClick={next}>Enter Remainder<ArrowRight size={14}/></button>}
             {step===1&&<button type="button" className="onboarding-primary" onClick={next}>Set up connections<ArrowRight size={14}/></button>}
             {step===2&&(status?.aiConfigured||status?.runtime==='vercel')&&<button type="button" className="onboarding-primary" onClick={next}>Continue<ArrowRight size={14}/></button>}
-            {step===3&&<><button type="button" className="quiet-link" onClick={next}>Set up later</button><button type="button" className="onboarding-primary" onClick={next} disabled={!status?.mcpConfigured&&!mcpAcknowledged}>Continue<ArrowRight size={14}/></button></>}
+            {step===3&&<><button type="button" className="quiet-link" onClick={next}>Set up later</button><button type="button" className="onboarding-primary" onClick={next} disabled={!mcpAcknowledged}>Continue<ArrowRight size={14}/></button></>}
             {step===4&&<button type="button" className="onboarding-primary" onClick={complete}>Start creating<ArrowRight size={14}/></button>}
           </div>
         </footer>
@@ -111,7 +111,7 @@ function StudioSetup({data,status}:{data:Bootstrap;status:ConnectionStatus|null}
 
 function AiSetup({status,apiKey,model,busy,onKey,onModel,onConnect,onSkip}:{status:ConnectionStatus|null;apiKey:string;model:string;busy:boolean;onKey:(value:string)=>void;onModel:(value:string)=>void;onConnect:()=>void;onSkip:()=>void}){
   return <div className="onboarding-copy"><p className="eyebrow">AI connection</p><h1>Choose how Remainder<br/>thinks with you.</h1><p className="onboarding-lede">NVIDIA NIM gives you richer project-aware conversation and more nuanced memory extraction. Local intelligence remains available without a key.</p>
-    {status?.runtime==='vercel'&&!status.aiConfigured?<div className="cloud-setup-card"><ShieldCheck size={17}/><div><strong>Configure AI in Vercel</strong><p>Add <code>NVIDIA_API_KEY</code> and <code>NVIDIA_MODEL</code> under Project Settings → Environment Variables, then redeploy. Remainder remains usable without them.</p></div></div>:status?.aiConfigured?<div className="connection-success"><span><Check size={15}/></span><div><strong>NVIDIA NIM is connected</strong><p>{status.aiModel} is ready for conversation and capture.</p></div></div>:<div className="connection-form">
+    {status?.runtime==='vercel'&&!status.aiConfigured?<div className="cloud-setup-card"><ShieldCheck size={17}/><div><strong>Configure AI in Vercel</strong><p>Add <code>NVIDIA_API_KEY</code> and <code>NVIDIA_MODEL</code> under Project Settings → Environment Variables, then redeploy. Remainder remains usable without them.</p></div></div>:status?.aiConfigured?<div className="connection-success"><span><Check size={15}/></span><div><strong>NVIDIA NIM is configured</strong><p>{status.aiModel} will be used for conversation and capture. Run the live check in Settings after a hosted redeploy.</p></div></div>:<div className="connection-form">
       <label><span>NVIDIA API key</span><div className="secret-input"><KeyRound size={14}/><input type="password" autoComplete="off" value={apiKey} onChange={event=>onKey(event.target.value)} placeholder="Paste your NVIDIA API key"/></div><small>Validated with NVIDIA, then saved only to your local .env file.</small></label>
       <label><span>Model</span><select value={model} onChange={event=>onModel(event.target.value)}><option value="meta/llama-3.3-70b-instruct">Llama 3.3 70B - balanced</option><option value="nvidia/llama-3.3-nemotron-super-49b-v1.5">Nemotron Super 49B - deeper reasoning</option></select></label>
       <div className="connection-choice"><button type="button" className="onboarding-primary" onClick={onConnect} disabled={busy||apiKey.length<20}>{busy?<Loader2 className="spin" size={14}/>:<BrandMark compact/>}Test and connect</button><button type="button" className="quiet-link" onClick={onSkip}>Use local intelligence for now</button></div>
@@ -122,14 +122,14 @@ function AiSetup({status,apiKey,model,busy,onKey,onModel,onConnect,onSkip}:{stat
 }
 
 function McpSetup({status,token,config,busy,copied,acknowledged,onGenerate,onCopy,onAcknowledge}:{status:ConnectionStatus|null;token:string;config:string;busy:boolean;copied:string;acknowledged:boolean;onGenerate:()=>void;onCopy:(value:string,label:string)=>void;onAcknowledge:(value:boolean)=>void}){
-  const ready=Boolean(token)||Boolean(status?.mcpConfigured);
+  const ready=Boolean(token)||Boolean(status?.mcpConfigured);const hosted=status?.runtime==='vercel';
   return <div className="onboarding-copy"><p className="eyebrow">MCP server</p><h1>Let other AI tools<br/>remember with you.</h1><p className="onboarding-lede">MCP lets compatible clients reach this project through its protected server endpoint.</p>
-    <div className="mcp-explainer"><div><span>1</span><p><strong>Generate a credential</strong>A personal bearer token protects the MCP endpoint.</p></div><div><span>2</span><p><strong>Add the configuration</strong>Paste the JSON into your MCP-compatible client.</p></div><div><span>3</span><p><strong>Keep Remainder running</strong>The client connects through the URL shown below.</p></div></div>
-    {!ready?<button type="button" className="generate-token" onClick={onGenerate} disabled={busy}>{busy?<Loader2 className="spin" size={15}/>:<KeyRound size={15}/>}Generate personal MCP credential</button>:<div className="connection-success compact"><span><Check size={15}/></span><div><strong>MCP credential is ready</strong><p>{token?'Copy the configuration below now. The full token is shown only in this setup step.':'A credential already exists. Rotate it to reveal a new copyable token.'}</p></div>{!token&&<button type="button" onClick={onGenerate}>Rotate</button>}</div>}
+    <div className="mcp-explainer"><div><span>1</span><p><strong>{hosted?'Add an API_KEY':'Generate a credential'}</strong>{hosted?'Store one long random secret in Vercel Environment Variables.':'A personal bearer token protects the MCP endpoint.'}</p></div><div><span>2</span><p><strong>Add the configuration</strong>Paste the JSON into your MCP-compatible client.</p></div><div><span>3</span><p><strong>{hosted?'Redeploy Remainder':'Keep Remainder running'}</strong>{hosted?'The endpoint reads the credential after deployment.':'The client connects through the URL shown below.'}</p></div></div>
+    {hosted&&!ready?<div className="cloud-setup-card"><ShieldCheck size={17}/><div><strong>Configure MCP in Vercel</strong><p>Add <code>API_KEY</code> under Project Settings → Environment Variables, use the same secret in your client configuration, then redeploy.</p></div></div>:!ready?<button type="button" className="generate-token" onClick={onGenerate} disabled={busy}>{busy?<Loader2 className="spin" size={15}/>:<KeyRound size={15}/>}Generate personal MCP credential</button>:<div className="connection-success compact"><span><Check size={15}/></span><div><strong>MCP credential is ready</strong><p>{token?'Copy the configuration below now. The full token is shown only in this setup step.':hosted?'API_KEY is present in Vercel. Replace the placeholder below with that same secret in your MCP client.':'A credential already exists. Rotate it to reveal a new copyable token.'}</p></div>{!token&&!hosted&&<button type="button" onClick={onGenerate}>Rotate</button>}</div>}
     <div className="config-block"><div><span>MCP client configuration</span><button type="button" onClick={()=>onCopy(config,'config')}><Copy size={12}/>{copied==='config'?'Copied':'Copy JSON'}</button></div><pre>{config}</pre></div>
     {token&&<div className="token-row"><div><span>Bearer token</span><code>{token}</code></div><button type="button" onClick={()=>onCopy(token,'token')}><Copy size={12}/>{copied==='token'?'Copied':'Copy'}</button></div>}
-    <label className="setup-confirm"><input type="checkbox" checked={acknowledged} onChange={event=>onAcknowledge(event.target.checked)}/><span>I copied the configuration into my MCP client.</span></label>
-    <p className="onboarding-note">Your client may call this a remote MCP server, custom connector, or SSE transport. Use the URL and Authorization header exactly as shown.</p>
+    <label className="setup-confirm"><input type="checkbox" checked={acknowledged} onChange={event=>onAcknowledge(event.target.checked)}/><span>{hosted?'I replaced the placeholder with my Vercel API_KEY in the MCP client.':'I copied the configuration into my MCP client.'}</span></label>
+    <p className="onboarding-note">Your client may call this a remote MCP server, custom connector, or streamable HTTP transport. It must send both the URL and the Authorization bearer header shown above.</p>
   </div>
 }
 
@@ -138,7 +138,7 @@ function Ready({status,projectName}:{status:ConnectionStatus|null;projectName:st
     {done:true,label:'Local project memory',detail:projectName+' is ready'},
     {done:Boolean(status?.aiConfigured),label:'NVIDIA NIM connection',detail:status?.aiConfigured?status.aiModel:'Local mode selected'},
     {done:Boolean(status?.mcpConfigured),label:'MCP server credential',detail:status?.mcpConfigured?'Protected endpoint ready':'Can be configured later'},
-    {done:true,label:'Automatic persistence',detail:'Every message and memory is saved'}
+    {done:true,label:'Automatic persistence',detail:'Completed exchanges and reviewed memory are saved'}
   ];
   return <div className="onboarding-copy ready-copy"><p className="eyebrow">Setup complete</p><h1>The work is ready<br/>to remember.</h1><p className="onboarding-lede">Start with something unresolved: an observation, a design tension, a question, or a direction you are unsure about.</p>
     <div className="ready-checklist">{checklist.map(item=><div key={item.label}><span className={item.done?'done':''}>{item.done?<Check size={12}/>:<span/>}</span><p><strong>{item.label}</strong><small>{item.detail}</small></p></div>)}</div>

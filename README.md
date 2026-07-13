@@ -17,7 +17,8 @@ Remainder has no account system in this personal build. It works without an AI k
 
 ## Complete workflows
 
-- Persistent projects, conversations, sources, import, export, and reset
+- Create, open, rename, recolor, delete, and restore projects
+- Persistent conversations, sources, import, export, and a true clean-start reset
 - Local or NVIDIA NIM conversation and extraction
 - Human-reviewed memory with message-level provenance
 - Explicit supersession with retained lineage and undo
@@ -45,11 +46,17 @@ NVIDIA_MODEL=meta/llama-3.3-70b-instruct
 NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
 ~~~
 
-If NIM is unavailable, Remainder falls back locally without losing the user message.
+If NIM is unavailable or times out, Remainder falls back locally. A failed exchange leaves the draft in the composer so it can be retried.
+
+## Connection checks
+
+Open **Settings -> Connection health** to verify project storage and MCP configuration. **Run check** also makes a live NVIDIA NIM request. The setup guide generates the protected MCP client configuration and explains the Vercel environment variables.
 
 ## Data and deployment
 
 Local memory is written atomically to .memory/studio.json. Set REMAINDER_DATA_DIR to isolate development or smoke-test data. Hosted deployments use private Vercel Blob storage; see [DEPLOYMENT.md](./DEPLOYMENT.md).
+
+**Begin again** removes all project memory and creates one blank, usable project. Locally it can also remove NIM and MCP credentials. On Vercel, environment variables remain in Vercel and project memory alone is reset.
 
 ## Verification
 

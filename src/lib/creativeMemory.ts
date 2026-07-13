@@ -16,6 +16,7 @@ export interface MemoryArtifact { id:string; projectId:string; sessionId:string|
 export interface StudioSource { id:string; projectId:string; type:SourceType; title:string; url:string; note:string; createdAt:string }
 export interface TimelineEvent { id:string; projectId:string; type:string; title:string; detail:string; sessionId:string|null; artifactId:string|null; createdAt:string }
 export interface CreativeMemoryState { version:number; activeProjectId:string; projects:StudioProject[]; sessions:StudioSession[]; artifacts:MemoryArtifact[]; sources:StudioSource[]; events:TimelineEvent[] }
+export interface DeletedProjectSnapshot { project:StudioProject; sessions:StudioSession[]; artifacts:MemoryArtifact[]; sources:StudioSource[]; events:TimelineEvent[] }
 export interface ExtractedArtifact { type:ArtifactType; title:string; body?:string; confidence?:number; sourceMessageIds?:string[]; tags?:string[] }
 export type SearchResultKind='project'|'artifact'|'conversation'|'source'|'history';
 export interface SearchResult { id:string; kind:SearchResultKind; projectId:string; projectName:string; sessionId?:string; artifactId?:string; artifactType?:ArtifactType; url?:string; title:string; snippet:string; meta:string; score:number }
@@ -33,7 +34,13 @@ const daysAgo = (days:number) => new Date(Date.now() - days * 86400000).toISOStr
 const makeId = (prefix:string) => prefix + '_' + randomUUID().replace(/-/g, '').slice(0, 12);
 
 export function normalizeCreativeMemoryState(state:CreativeMemoryState):CreativeMemoryState {
-  state.version=3;
+  if(!state||!Array.isArray(state.projects)||!state.projects.length)return createFreshState();
+  const legacyProjects={atlas:['Atlas','Exploring spatial wayfinding without demanding attention.'],pentimento:['Pentimento','A living record of how creative work changes.'],'invisible-interfaces':['Invisible Interfaces','Designing systems that know when to disappear.']} as const;
+  const untouchedDemo=state.version<=3&&state.projects.length===3&&state.projects.every(project=>{const expected=legacyProjects[project.id as keyof typeof legacyProjects];return expected&&project.name===expected[0]&&project.description===expected[1]})&&state.sessions?.length===1&&state.sessions[0]?.id==='session_welcome'&&state.sessions[0].messages?.length===2&&state.sessions[0].messages[0]?.id==='msg_welcome_user'&&state.sessions[0].messages[1]?.id==='msg_welcome_studio'&&!(state.artifacts||[]).length&&!(state.sources||[]).length;
+  if(untouchedDemo)return createFreshState();
+  state.version=4;
+  state.projects=state.projects||[];
+  state.sessions=state.sessions||[];
   state.artifacts=(state.artifacts||[]).map(artifact=>({
     ...artifact,
     reviewStatus:artifact.reviewStatus||'accepted',
@@ -42,6 +49,15 @@ export function normalizeCreativeMemoryState(state:CreativeMemoryState):Creative
     supersedesArtifactIds:artifact.supersedesArtifactIds||[],
     supersededByArtifactId:artifact.supersededByArtifactId||null
   }));
+  state.sources=state.sources||[];
+  state.events=state.events||[];
+  for(const project of state.projects){
+    if(!state.sessions.some(session=>session.projectId===project.id)){
+      const timestamp=project.updatedAt||project.createdAt||now();
+      state.sessions.push({id:'session_'+project.id+'_first',projectId:project.id,title:'First conversation',createdAt:timestamp,updatedAt:timestamp,capturedAt:null,messages:[]});
+    }
+  }
+  if(!state.projects.some(project=>project.id===state.activeProjectId))state.activeProjectId=state.projects[0].id;
   return state;
 }
 
@@ -88,33 +104,11 @@ export function applyArtifactSupersession(artifact:MemoryArtifact,artifacts:Memo
   return artifact.supersedesArtifactIds;
 }
 
-function seedState():CreativeMemoryState {
-  return {
-    version:3,
-    activeProjectId:'atlas',
-    projects:[
-      { id:'atlas', name:'Atlas', description:'Exploring spatial wayfinding without demanding attention.', color:'#df7257', createdAt:daysAgo(36), updatedAt:daysAgo(1) },
-      { id:'pentimento', name:'Pentimento', description:'A living record of how creative work changes.', color:'#A44932', createdAt:daysAgo(24), updatedAt:daysAgo(4) },
-      { id:'invisible-interfaces', name:'Invisible Interfaces', description:'Designing systems that know when to disappear.', color:'#5e9b86', createdAt:daysAgo(18), updatedAt:daysAgo(6) }
-    ],
-    sessions:[{
-      id:'session_welcome', projectId:'atlas', title:'Wayfinding without maps', createdAt:daysAgo(1), updatedAt:daysAgo(1), capturedAt:null,
-      messages:[
-        { id:'msg_welcome_user', role:'user', createdAt:daysAgo(1), citedArtifactIds:[], content:'The minimap solves orientation, but it makes the experience feel like software. What if the environment itself could carry the sense of direction?' },
-        { id:'msg_welcome_studio', role:'assistant', createdAt:daysAgo(1), citedArtifactIds:[], content:'Then orientation becomes something people feel before they need to read it. Light, density, and sound could gently build confidence, while the map remains a fallback rather than the primary interface.' }
-      ]
-    }],
-    artifacts:[],
-    sources:[],
-    events:[{ id:'event_welcome', projectId:'atlas', type:'conversation', title:'Wayfinding without maps', detail:'The project began exploring ambient orientation.', sessionId:'session_welcome', artifactId:null, createdAt:daysAgo(1) }]
-  };
-}
-
 export function createFreshState():CreativeMemoryState {
   const timestamp=now();
   const project:StudioProject={ id:'my-first-project', name:'My first project', description:'A fresh space for your next idea.', color:'#A44932', createdAt:timestamp, updatedAt:timestamp };
   const session:StudioSession={ id:'session_first', projectId:project.id, title:'First conversation', createdAt:timestamp, updatedAt:timestamp, capturedAt:null, messages:[] };
-  return { version:3, activeProjectId:project.id, projects:[project], sessions:[session], artifacts:[], sources:[], events:[] };
+  return { version:4, activeProjectId:project.id, projects:[project], sessions:[session], artifacts:[], sources:[], events:[] };
 }
 
 class CreativeMemoryStore {
@@ -124,7 +118,7 @@ class CreativeMemoryStore {
     try {
       let result:any=await get(BLOB_PATH,{access:'private',useCache:false});
       if(!result||result.statusCode===404){
-        const initial=seedState();
+        const initial=createFreshState();
         try{const created:any=await put(BLOB_PATH,JSON.stringify(initial),{access:'private',contentType:'application/json',allowOverwrite:false});return{state:initial,etag:created.etag}}
         catch(error){if(!isPreconditionError(error))throw error;result=await get(BLOB_PATH,{access:'private',useCache:false})}
       }
@@ -137,7 +131,7 @@ class CreativeMemoryStore {
   private async readSnapshot():Promise<StateSnapshot> {
     if(creativeStorageMode()==='vercel-blob')return this.readCloud();
     await fs.mkdir(DATA_DIR,{recursive:true});
-    try{await fs.access(DATA_FILE)}catch{await this.writeLocal(seedState())}
+    try{await fs.access(DATA_FILE)}catch{await this.writeLocal(createFreshState())}
     return{state:normalizeCreativeMemoryState(JSON.parse(await fs.readFile(DATA_FILE,'utf8')) as CreativeMemoryState)};
   }
 
@@ -205,8 +199,50 @@ class CreativeMemoryStore {
     return this.mutate(state=>{
       const project=state.projects.find(item=>item.id===projectId);
       if (!project) throw new Error('Project not found');
-      Object.assign(project, updates, {updatedAt:now()});
+      const nextName=updates.name===undefined?project.name:updates.name.trim();
+      if(!nextName)throw new Error('Project name is required');
+      Object.assign(project,{...updates,name:nextName,description:updates.description===undefined?project.description:updates.description.trim(),updatedAt:now()});
       return project;
+    });
+  }
+
+  async deleteProject(projectId:string) {
+    return this.mutate(state=>{
+      const project=state.projects.find(item=>item.id===projectId);
+      if(!project)throw new Error('Project not found');
+      if(state.projects.length===1)throw new Error('A workspace needs at least one project. Rename this one or begin again.');
+      const snapshot:DeletedProjectSnapshot={
+        project:{...project},
+        sessions:state.sessions.filter(item=>item.projectId===projectId).map(item=>({...item,messages:item.messages.map(message=>({...message,citedArtifactIds:[...message.citedArtifactIds]}))})),
+        artifacts:state.artifacts.filter(item=>item.projectId===projectId).map(item=>({...item,relatedArtifactIds:[...item.relatedArtifactIds],supersedesArtifactIds:[...item.supersedesArtifactIds],tags:[...item.tags],sourceMessageIds:[...item.sourceMessageIds]})),
+        sources:state.sources.filter(item=>item.projectId===projectId).map(item=>({...item})),
+        events:state.events.filter(item=>item.projectId===projectId).map(item=>({...item}))
+      };
+      state.projects=state.projects.filter(item=>item.id!==projectId);
+      state.sessions=state.sessions.filter(item=>item.projectId!==projectId);
+      state.artifacts=state.artifacts.filter(item=>item.projectId!==projectId);
+      state.sources=state.sources.filter(item=>item.projectId!==projectId);
+      state.events=state.events.filter(item=>item.projectId!==projectId);
+      if(state.activeProjectId===projectId)state.activeProjectId=state.projects[0].id;
+      return{snapshot,activeProjectId:state.activeProjectId};
+    });
+  }
+
+  async restoreProject(snapshot:DeletedProjectSnapshot) {
+    return this.mutate(state=>{
+      if(!snapshot?.project?.id||!snapshot.project.name?.trim())throw new Error('The removed project could not be restored');
+      const projectId=snapshot.project.id;
+      if(state.projects.some(item=>item.id===projectId))throw new Error('This project is already restored');
+      const timestamp=now();
+      const project={...snapshot.project,name:snapshot.project.name.trim(),updatedAt:timestamp};
+      const sessions=(snapshot.sessions||[]).filter(item=>item?.projectId===projectId&&!state.sessions.some(existing=>existing.id===item.id));
+      const restoredSessions=sessions.length?sessions:[{id:makeId('session'),projectId,title:'First conversation',createdAt:timestamp,updatedAt:timestamp,capturedAt:null,messages:[]}];
+      const artifacts=(snapshot.artifacts||[]).filter(item=>item?.projectId===projectId&&!state.artifacts.some(existing=>existing.id===item.id));
+      const sources=(snapshot.sources||[]).filter(item=>item?.projectId===projectId&&!state.sources.some(existing=>existing.id===item.id));
+      const events=(snapshot.events||[]).filter(item=>item?.projectId===projectId&&!state.events.some(existing=>existing.id===item.id));
+      state.projects.push(project);state.sessions.push(...restoredSessions);state.artifacts.push(...artifacts);state.sources.push(...sources);state.events.push(...events);state.activeProjectId=projectId;
+      const activeSession=[...restoredSessions].sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt))[0]||null;
+      return{project,activeSession};
     });
   }
 
@@ -239,6 +275,22 @@ class CreativeMemoryStore {
       const project=state.projects.find(item=>item.id===session.projectId);
       if (project) project.updatedAt=message.createdAt;
       return message;
+    });
+  }
+
+  async addExchange(sessionId:string,userContent:string,assistantContent:string,citedArtifactIds:string[] = []) {
+    return this.mutate(state=>{
+      const session=state.sessions.find(item=>item.id===sessionId);
+      if(!session)throw new Error('Conversation not found. Open the project again and retry.');
+      const cleanUser=userContent.trim();const cleanAssistant=assistantContent.trim();
+      if(!cleanUser||!cleanAssistant)throw new Error('The conversation exchange was incomplete');
+      const user:StudioMessage={id:makeId('msg'),role:'user',content:cleanUser,createdAt:now(),citedArtifactIds:[]};
+      const assistant:StudioMessage={id:makeId('msg'),role:'assistant',content:cleanAssistant,createdAt:now(),citedArtifactIds};
+      session.messages.push(user,assistant);session.updatedAt=assistant.createdAt;
+      if(session.messages.length===2&&/^(New conversation|First conversation)$/.test(session.title))session.title=cleanUser.slice(0,54);
+      const project=state.projects.find(item=>item.id===session.projectId);
+      if(project)project.updatedAt=assistant.createdAt;
+      return{user,assistant};
     });
   }
 

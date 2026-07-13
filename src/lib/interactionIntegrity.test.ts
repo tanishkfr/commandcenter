@@ -12,6 +12,8 @@ describe('visible interaction integrity',()=>{
     expect(app).toContain('history-moment static');
     expect(app).toContain("if(result.kind==='source'&&result.url)");
     expect(app).toContain('captureDisabled={!session||!session.messages.length}');
+    expect(app).toContain('Your draft is still in the composer.');
+    expect(app).toContain('onSend:(text:string)=>Promise<boolean>');
   });
 
   it('labels icon-only controls and contains destructive-action recovery',()=>{
@@ -26,6 +28,10 @@ describe('visible interaction integrity',()=>{
     expect(app).toContain('Change direction');
     expect(app).toContain('supersededByArtifactId');
     expect(app).toContain('capture-path');
+    expect(app).toContain('Delete project');
+    expect(app).toContain('studioApi.restoreProject(removed.snapshot)');
+    expect(app).toContain('Run check');
+    expect(app).toContain('onReset={applyReset}');
   });
 
   it('contains keyboard and dialog semantics for every overlay',()=>{
@@ -33,6 +39,9 @@ describe('visible interaction integrity',()=>{
     expect(app).toContain("event.key==='Escape'");
     expect(onboarding).toContain('role="dialog"');
     expect(onboarding).toContain('disabled={index>step}');
+    expect(onboarding).toContain('disabled={!mcpAcknowledged}');
+    expect(onboarding).toContain("http://localhost:3000/api/mcp'");
     expect(onboarding).toContain("aria-current={index===step?'step':undefined}");
+    expect(onboarding).toContain('remainder-onboarding-v2');
   });
 });

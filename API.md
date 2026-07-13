@@ -14,13 +14,16 @@ The active first-party API is mounted at **/api/studio**. The protected MCP endp
 - DELETE /api/studio/settings/ai
 - POST /api/studio/settings/mcp
 - POST /api/studio/settings/reset
+- POST /api/studio/settings/diagnostics
 
-Secrets are never returned after storage. Reset can preserve or remove credentials.
+Secrets are never returned after storage. Local reset can preserve or remove credentials. Hosted reset cannot mutate Vercel environment variables. Diagnostics checks storage and configuration; `{"testAI":true}` adds a live NIM request.
 
 ## Projects and conversations
 
 - POST /api/studio/projects
 - PATCH /api/studio/projects/:id
+- DELETE /api/studio/projects/:id
+- POST /api/studio/projects/restore
 - POST /api/studio/projects/:id/active
 - POST /api/studio/sessions
 - GET /api/studio/sessions/:id
@@ -28,7 +31,7 @@ Secrets are never returned after storage. Reset can preserve or remove credentia
 - POST /api/studio/sessions/:id/capture
 - POST /api/studio/import
 
-Capture creates pending candidates. Pending memory is excluded from model context.
+A message endpoint first generates the response, then persists the user and assistant messages as one atomic exchange. Capture creates pending candidates. Pending memory is excluded from model context.
 
 ## Memory lifecycle
 
