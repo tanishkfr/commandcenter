@@ -96,7 +96,8 @@ export function createCreativeRouter(onChange:(event:string,data:unknown)=>void)
   router.post('/artifacts/:id/review',handle(async(req,res)=>{
     const action=req.body?.action;
     if(action!=='accept'&&action!=='reject'&&action!=='pending')throw new Error('Review action must be accept, reject, or pending');
-    const artifact=await creativeMemoryStore.reviewArtifact(req.params.id,action);
+    const supersedeIds=Array.isArray(req.body?.supersedeIds)?req.body.supersedeIds.filter((value:unknown):value is string=>typeof value==='string').slice(0,20):[];
+    const artifact=await creativeMemoryStore.reviewArtifact(req.params.id,action,supersedeIds);
     onChange('artifact-reviewed',artifact);res.json(artifact);
   }));
 

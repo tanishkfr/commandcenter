@@ -22,6 +22,10 @@ describe('visible interaction integrity',()=>{
     expect(app).toContain('Remove this memory?');
     expect(app).toContain("'Undo'");
     expect(app).toContain("onReview(item.id,'accept')");
+    expect(app).toContain('Keep alongside');
+    expect(app).toContain('Change direction');
+    expect(app).toContain('supersededByArtifactId');
+    expect(app).toContain('capture-path');
   });
 
   it('contains keyboard and dialog semantics for every overlay',()=>{

@@ -1,91 +1,62 @@
-# Remainder API Documentation
+# Remainder API
 
-The Remainder provides a headless API that allows external AI systems (like ChatGPT, Claude Code, Gemini, and custom agents) to control the workspace directly.
+The active first-party API is mounted at **/api/studio**. The protected MCP endpoint is **/api/mcp**.
 
-## Authentication
+## Health and bootstrap
 
-All requests to the AI tool endpoint require an API key to be passed via the `Authorization` header as a Bearer token. 
+- GET /api/health
+- GET /api/studio/bootstrap?projectId=…
 
-Example:
-```http
-Authorization: Bearer <API_KEY>
-```
+## Connections and reset
 
-*(Note: The API key is configured using the `API_KEY` environment variable on the server.)*
+- GET /api/studio/settings/connections
+- POST /api/studio/settings/ai
+- DELETE /api/studio/settings/ai
+- POST /api/studio/settings/mcp
+- POST /api/studio/settings/reset
 
-## Endpoints
+Secrets are never returned after storage. Reset can preserve or remove credentials.
 
-### Execute AI Command
+## Projects and conversations
 
-Process natural language instructions to interact with workspaces, projects, and todos. The endpoint internally parses the instruction and updates the underlying data system.
+- POST /api/studio/projects
+- PATCH /api/studio/projects/:id
+- POST /api/studio/projects/:id/active
+- POST /api/studio/sessions
+- GET /api/studio/sessions/:id
+- POST /api/studio/sessions/:id/messages
+- POST /api/studio/sessions/:id/capture
+- POST /api/studio/import
 
-**Endpoint:** `POST /api/ai`
+Capture creates pending candidates. Pending memory is excluded from model context.
 
-**Headers:**
-- `Content-Type: application/json`
-- `Authorization: Bearer <API_KEY>`
+## Memory lifecycle
 
-**Request Body:**
+- PATCH /api/studio/artifacts/:id
+- POST /api/studio/artifacts/:id/review
+- DELETE /api/studio/artifacts/:id
+- POST /api/studio/artifacts/restore
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `message` | string | Yes | The natural language command to execute. |
-| `dryRun` | boolean | No | If true, parses and returns the intended action without actually modifying the data. Default is false. |
+Review body:
 
-**Example Request:**
-```json
-{
-  "message": "Add 'Rewrite onboarding' to 'Design or Disaster'.",
-  "dryRun": false
-}
-```
+~~~json
+{"action":"accept","supersedeIds":["memory_earlier"]}
+~~~
 
-**Example Response (Success):**
-```json
-{
-  "success": true,
-  "action": "createTodo",
-  "project": {
-    "id": "proj_a1b2c3d4",
-    "title": "Design or Disaster"
-  },
-  "todo": {
-    "id": "todo_e5f6g7h8",
-    "text": "Rewrite onboarding"
-  },
-  "filesChanged": [
-    "proj_a1b2c3d4.json"
-  ]
-}
-```
+Valid actions are accept, reject, and pending. Supersede IDs are optional and constrained to accepted, related memory in the same project. Accepting without IDs keeps the new memory alongside current context. Undo restores the prior review state and lineage.
 
-**Example Response (Error):**
-If a command is ambiguous or cannot be parsed, the API will return a 400 Bad Request with an error description and potential options.
+## Sources, search, and export
 
-```json
-{
-  "success": false,
-  "reason": "Multiple projects match 'Design'",
-  "options": [
-    "Design or Disaster",
-    "Design System V2"
-  ]
-}
-```
+- POST /api/studio/sources
+- GET /api/studio/search?q=…&projectId=…
+- GET /api/studio/export
 
-## Real-time Events (Server-Sent Events)
+## MCP
 
-When data is changed via the API, the backend broadcasts a Server-Sent Event (SSE) to connected clients. 
+POST /api/mcp accepts stateless MCP requests with a bearer token:
 
-**Endpoint:** `GET /api/events`
+~~~http
+Authorization: Bearer YOUR_API_KEY
+~~~
 
-Clients can subscribe to the `/api/events` endpoint to automatically update UI or synchronized state.
-
-**Event Type:** `data-changed`
-
-**Data Payload:**
-```json
-{
-  "action": "createTodo"
-}
-```
+The reviewMemoryArtifact tool exposes the same optional supersedeIds semantics as the interface. Errors return JSON and the first-party interface never assumes a mutation succeeded.

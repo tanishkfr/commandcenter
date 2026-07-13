@@ -2,75 +2,42 @@
 
 A personal, local-first workspace where conversations become durable project memory.
 
-The conversation is the interface. The project is the memory. Judgment decides what remains.
+**The conversation is the interface. The project is the memory. Judgment decides what remains.**
 
-## What works
+## Product loop
 
-- Create and switch projects
-- Start multiple persistent conversations per project
-- Think with a context-aware AI collaborator
-- Capture decisions, principles, questions, ideas, experiments, risks, actions, references, and abandoned directions
-- Review and edit captured memory
-- Resolve, archive, or delete memories
-- Link Figma files, GitHub repositories, research, documents, and notes
-- Import pasted ChatGPT, Claude, Gemini, or other conversations
-- Search across conversations, memory, rationale, and sources
-- Follow a chronological project history
-- Export all personal data as JSON
-- Begin again with a blank workspace, with optional NVIDIA NIM and MCP credential removal
-- Review the product purpose and memory workflow in the in-app About section
-- Work without an AI key through the built-in local collaborator and extractor
+1. Open a project and continue a conversation.
+2. Keep from the session when something changes the work.
+3. Review every candidate before it enters project context.
+4. Keep new context alongside earlier memory, or explicitly mark a changed direction.
+5. Recover the reasoning through Memory, History, Search, export, or MCP.
+6. Undo review and deletion decisions without erasing provenance.
 
-There is intentionally no account system. This build is designed for one person and supports both local Windows use and a private Vercel deployment.
+Remainder has no account system in this personal build. It works without an AI key through a deterministic local collaborator and extractor. NVIDIA NIM adds richer synthesis when configured.
 
-## Deploy on Vercel
+## Complete workflows
 
-+The hosted build includes a real Express API function and durable private Vercel Blob storage. Follow [DEPLOYMENT.md](./DEPLOYMENT.md) for the one-time storage and environment setup.
+- Persistent projects, conversations, sources, import, export, and reset
+- Local or NVIDIA NIM conversation and extraction
+- Human-reviewed memory with message-level provenance
+- Explicit supersession with retained lineage and undo
+- Grouped search across projects, memory, conversations, history, and sources
+- Living context rail and chronological history
+- Protected MCP access
+- Atomic local storage and private Vercel Blob persistence
+- Keyboard navigation, focus states, reduced motion, and recovery states
 
-+## Start the product locally
+## Run locally on Windows
 
-Install dependencies:
-
-~~~bash
+~~~powershell
 npm install
-~~~
-
-Optional: copy the environment template and add an NVIDIA API key for richer responses and extraction.
-
-~~~bash
-copy .env.example .env
-~~~
-
-Then run:
-
-~~~bash
+Copy-Item .env.example .env
 npm run dev
 ~~~
 
-Open [http://localhost:3000](http://localhost:3000).
+Open http://localhost:3000. The environment file is optional.
 
-The development server watches both the interface and server code.
-
-## First-run setup
-
-The setup guide opens automatically the first time you run the product. You can replay it at any time with the question-mark button in the top bar or **Settings -> Replay setup guide**.
-
-It walks through:
-
-1. how conversations become durable project memory;
-2. where personal data is stored;
-3. testing and saving an optional NVIDIA NIM connection;
-4. generating a protected MCP credential;
-5. copying a complete MCP client configuration;
-6. starting the first real conversation.
-
-NVIDIA API keys and MCP credentials are saved only to the ignored local `.env` file. The full MCP token is shown when it is generated, so copy it into your client before leaving that setup step.
-
-## AI configuration
-
-Without configuration, Remainder runs in local-intelligence mode. Conversations, capture, persistence, search, import, and editing all continue to work.
-
-For NVIDIA NIM-backed thinking and extraction, create a .env file:
+## Optional NVIDIA NIM
 
 ~~~env
 NVIDIA_API_KEY=your_key
@@ -78,54 +45,18 @@ NVIDIA_MODEL=meta/llama-3.3-70b-instruct
 NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
 ~~~
 
-If an AI request fails, Remainder automatically falls back to local mode rather than losing the conversation.
+If NIM is unavailable, Remainder falls back locally without losing the user message.
 
-## Your data
+## Data and deployment
 
-In local mode, personal data is written atomically to:
-
-~~~
-.memory/studio.json
-~~~
-
-On Vercel, the same state is stored in a private Blob at `creative-memory/studio.json` with conditional writes to prevent silent request races.
-
-The .memory directory is ignored by Git. Use Settings → Export all personal data to create a portable JSON backup.
-
-The first run creates three starter projects. Everything you add after that is persisted across restarts.
-
-## Core workflow
-
-1. Open or create a project.
-2. Start a conversation and think through the work.
-3. Add relevant project sources.
-4. Click Capture session.
-5. Review the memories that were created.
-6. Edit, resolve, archive, or remove them in Memory.
-7. Use Search or History to recover what changed and why.
-
-## Keyboard shortcuts
-
-- Ctrl + K - search project memory
-- Ctrl + Shift + S - capture the current session
-- / - focus the conversation composer
-- Escape - close the active overlay
+Local memory is written atomically to .memory/studio.json. Set REMAINDER_DATA_DIR to isolate development or smoke-test data. Hosted deployments use private Vercel Blob storage; see [DEPLOYMENT.md](./DEPLOYMENT.md).
 
 ## Verification
 
-~~~bash
+~~~powershell
 npm run lint
 npm test
 npm run build
 ~~~
 
-## Architecture
-
-- React 19, TypeScript, Vite, Motion, and Lucide for the application
-- Express for the local API
-- Atomic JSON persistence for a zero-setup personal installation
-- Optional NVIDIA NIM integration
-- Local heuristic collaborator and extraction fallback
-- Authenticated stateless MCP over HTTP, with the legacy local SSE transport retained for compatibility
-
-The local persistence layer is intentionally replaceable. A hosted multi-user version can move the same domain model to PostgreSQL, object storage, and background jobs without changing the product loop.
+See [QUALITY.md](./QUALITY.md), [ARCHITECTURE.md](./ARCHITECTURE.md), [CASE_STUDY.md](./CASE_STUDY.md), [RESEARCH_PROTOCOL.md](./RESEARCH_PROTOCOL.md), and [PORTFOLIO_STORYBOARD.md](./PORTFOLIO_STORYBOARD.md).
