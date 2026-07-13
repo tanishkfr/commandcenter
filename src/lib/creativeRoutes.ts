@@ -145,8 +145,8 @@ export function createCreativeRouter(onChange:(event:string,data:unknown)=>void)
   }));
 
   router.post('/import',handle(async(req,res)=>{
-    if(!String(req.body?.text||'').trim())throw new Error('Import text is required');
-    const session=await creativeMemoryStore.importText(req.body.projectId,{title:req.body.title||'Imported conversation',text:req.body.text});
+    const text=String(req.body?.text||'').trim();if(!text)throw new Error('Import text is required');
+    const session=await creativeMemoryStore.importText(req.body.projectId,{title:String(req.body?.title||'Imported conversation'),text});
     onChange('session-imported',session);res.status(201).json(session);
   }));
 

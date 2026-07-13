@@ -598,3 +598,35 @@ button:not(:disabled),a[href],select:not(:disabled){cursor:pointer}
   .capture-path{gap:5px;font-size:var(--font-caption)}
   .capture-path span{padding:5px}
 }
+
+/* Final production review */
+.skip-link{position:fixed;top:12px;left:12px;z-index:200;transform:translateY(-160%);border-radius:var(--radius-control);background:var(--ink);color:var(--paper);padding:10px 13px;font-size:var(--font-label);font-weight:600;text-decoration:none;box-shadow:0 10px 30px rgba(36,33,29,.2)}
+.skip-link:focus{transform:translateY(0)}
+#main-content:focus{outline:none}
+.color-picker button{width:30px;height:30px}
+.project-manager-row>button{min-height:34px}
+@media(max-width:900px){
+  .session-switch{display:block;margin:-16px 0 24px}
+  .session-switch>button{max-width:min(100%,320px);min-height:40px}
+  .session-menu{left:0;right:auto;width:min(320px,calc(100vw - 48px))}
+}
+@media(max-width:620px){
+  .session-switch{margin:-12px 0 20px}
+  .session-switch>button{max-width:100%}
+  .session-menu{width:calc(100vw - 28px)}
+  .icon-button,.search-button{width:40px;height:40px}
+  .capture-button,.memory-toolbar button,.memory-toolbar .memory-ask,.review-actions button,.review-accept,.text-button,.save-memory,.danger-button,.reset-button,.confirm-reset,.small-action{min-height:40px}
+  .color-picker button{width:34px;height:34px}
+}
+@media(max-width:480px){
+  .topbar-help{display:none}
+}
+@media(max-width:420px){
+  .topbar-project{max-width:calc(100vw - 164px)}
+  .project-switcher select{max-width:calc(100vw - 186px)}
+}
+@media(pointer:coarse){
+  .icon-button,.search-button,.session-switch>button,.capture-button,.memory-toolbar button,.memory-toolbar .memory-ask,.review-actions button,.review-accept,.text-button,.save-memory,.danger-button,.reset-button,.confirm-reset,.small-action,.project-manager-row>button{min-height:44px}
+  .icon-button,.search-button{min-width:44px}
+  .color-picker button{width:36px;height:36px}
+}
