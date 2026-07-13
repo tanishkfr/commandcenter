@@ -92,12 +92,12 @@ class CreativeMemoryStore {
   private async readCloud():Promise<StateSnapshot> {
     try {
       let result:any=await get(BLOB_PATH,{access:'private',useCache:false});
-      if(!result){
+      if(!result||result.statusCode===404){
         const initial=seedState();
         try{const created:any=await put(BLOB_PATH,JSON.stringify(initial),{access:'private',contentType:'application/json',allowOverwrite:false});return{state:initial,etag:created.etag}}
         catch(error){if(!isPreconditionError(error))throw error;result=await get(BLOB_PATH,{access:'private',useCache:false})}
       }
-      if(!result||result.status!==200)throw cloudStorageError();
+      if(!result||result.statusCode!==200||!result.stream||!result.blob)throw cloudStorageError();
       const text=await new Response(result.stream).text();
       return{state:normalizeCreativeMemoryState(JSON.parse(text) as CreativeMemoryState),etag:result.blob.etag};
     }catch(error){if(isPreconditionError(error))throw error;console.error('Vercel Blob storage error',error);throw cloudStorageError()}
