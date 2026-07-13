@@ -64,7 +64,7 @@ export default function Onboarding({data,onClose,onConfigured}:Props){
       <aside className="onboarding-rail">
         <div className="onboarding-brand"><div className="mark"><span/><span/><span/></div><div><strong>Creative Memory</strong><small>Personal studio setup</small></div></div>
         <nav>{steps.map((item,index)=>{const Icon=item.icon;return <button key={item.label} className={index===step?'active':index<step?'complete':''} onClick={()=>setStep(index)} disabled={index>step} aria-current={index===step?'step':undefined}><span>{index<step?<Check size={12}/>:<Icon size={13}/>}</span><em>{item.label}</em></button>})}</nav>
-        <div className="onboarding-privacy"><ShieldCheck size={14}/><p><strong>Local by default</strong>Your projects, memory, keys, and MCP token remain on this machine.</p></div>
+        <div className="onboarding-privacy"><ShieldCheck size={14}/><p><strong>{status?.runtime==='vercel'?'Private cloud':'Local by default'}</strong>{status?.runtime==='vercel'?'Project memory is stored in your private Vercel Blob. Keys stay in server environment variables.':'Your projects, memory, keys, and MCP token remain on this machine.'}</p></div>
       </aside>
 
       <main className="onboarding-main">
@@ -84,7 +84,7 @@ export default function Onboarding({data,onClose,onConfigured}:Props){
           <div>
             {step===0&&<button className="onboarding-primary" onClick={next}>Enter your studio<ArrowRight size={14}/></button>}
             {step===1&&<button className="onboarding-primary" onClick={next}>Set up connections<ArrowRight size={14}/></button>}
-            {step===2&&status?.aiConfigured&&<button className="onboarding-primary" onClick={next}>Continue<ArrowRight size={14}/></button>}
+            {step===2&&(status?.aiConfigured||status?.runtime==='vercel')&&<button className="onboarding-primary" onClick={next}>Continue<ArrowRight size={14}/></button>}
             {step===3&&<><button className="quiet-link" onClick={next}>Set up later</button><button className="onboarding-primary" onClick={next} disabled={!status?.mcpConfigured&&!mcpAcknowledged}>Continue<ArrowRight size={14}/></button></>}
             {step===4&&<button className="onboarding-primary" onClick={complete}>Start creating<ArrowRight size={14}/></button>}
           </div>
@@ -103,14 +103,14 @@ function Welcome(){
 function StudioSetup({data,status}:{data:Bootstrap;status:ConnectionStatus|null}){
   return <div className="onboarding-copy"><p className="eyebrow">Your personal studio</p><h1>Everything begins<br/>inside a project.</h1><p className="onboarding-lede">Conversations, sources, decisions, experiments, and history stay connected to the project they belong to.</p>
     <div className="onboarding-project-card"><span style={{background:data.project.color}}>{data.project.name[0]}</span><div><small>Current project</small><strong>{data.project.name}</strong><p>{data.project.description}</p></div><CheckCircle2 size={17}/></div>
-    <div className="local-data-card"><Database size={17}/><div><strong>Your data stays local</strong><p>{status?.dataFile||'.memory/studio.json'}</p></div></div>
+    <div className="local-data-card"><Database size={17}/><div><strong>{status?.storageMode==='vercel-blob'?'Private cloud memory':'Your data stays local'}</strong><p>{status?.dataFile||'.memory/studio.json'}</p></div></div>
     <p className="onboarding-note">You can create more projects, import existing AI conversations, and export your complete memory at any time.</p>
   </div>
 }
 
 function AiSetup({status,apiKey,model,busy,onKey,onModel,onConnect,onSkip}:{status:ConnectionStatus|null;apiKey:string;model:string;busy:boolean;onKey:(value:string)=>void;onModel:(value:string)=>void;onConnect:()=>void;onSkip:()=>void}){
   return <div className="onboarding-copy"><p className="eyebrow">AI connection</p><h1>Choose how Studio<br/>thinks with you.</h1><p className="onboarding-lede">NVIDIA NIM gives you richer project-aware conversation and more nuanced memory extraction. Local intelligence remains available without a key.</p>
-    {status?.aiConfigured?<div className="connection-success"><span><Check size={15}/></span><div><strong>NVIDIA NIM is connected</strong><p>{status.aiModel} is ready for conversation and capture.</p></div></div>:<div className="connection-form">
+    {status?.runtime==='vercel'&&!status.aiConfigured?<div className="cloud-setup-card"><ShieldCheck size={17}/><div><strong>Configure AI in Vercel</strong><p>Add <code>NVIDIA_API_KEY</code> and <code>NVIDIA_MODEL</code> under Project Settings → Environment Variables, then redeploy. Studio remains usable without them.</p></div></div>:status?.aiConfigured?<div className="connection-success"><span><Check size={15}/></span><div><strong>NVIDIA NIM is connected</strong><p>{status.aiModel} is ready for conversation and capture.</p></div></div>:<div className="connection-form">
       <label><span>NVIDIA API key</span><div className="secret-input"><KeyRound size={14}/><input type="password" autoComplete="off" value={apiKey} onChange={event=>onKey(event.target.value)} placeholder="Paste your NVIDIA API key"/></div><small>Validated with NVIDIA, then saved only to your local .env file.</small></label>
       <label><span>Model</span><select value={model} onChange={event=>onModel(event.target.value)}><option value="meta/llama-3.3-70b-instruct">Llama 3.3 70B - balanced</option><option value="nvidia/llama-3.3-nemotron-super-49b-v1.5">Nemotron Super 49B - deeper reasoning</option></select></label>
       <div className="connection-choice"><button className="onboarding-primary" onClick={onConnect} disabled={busy||apiKey.length<20}>{busy?<Loader2 className="spin" size={14}/>:<Sparkles size={14}/>}Test and connect</button><button className="quiet-link" onClick={onSkip}>Use local intelligence for now</button></div>
@@ -122,8 +122,8 @@ function AiSetup({status,apiKey,model,busy,onKey,onModel,onConnect,onSkip}:{stat
 
 function McpSetup({status,token,config,busy,copied,acknowledged,onGenerate,onCopy,onAcknowledge}:{status:ConnectionStatus|null;token:string;config:string;busy:boolean;copied:string;acknowledged:boolean;onGenerate:()=>void;onCopy:(value:string,label:string)=>void;onAcknowledge:(value:boolean)=>void}){
   const ready=Boolean(token)||Boolean(status?.mcpConfigured);
-  return <div className="onboarding-copy"><p className="eyebrow">MCP server</p><h1>Let other AI tools<br/>remember with you.</h1><p className="onboarding-lede">MCP lets compatible clients reach this project safely while the local server is running.</p>
-    <div className="mcp-explainer"><div><span>1</span><p><strong>Generate a credential</strong>A personal bearer token protects the local MCP endpoint.</p></div><div><span>2</span><p><strong>Add the configuration</strong>Paste the JSON into your MCP-compatible client.</p></div><div><span>3</span><p><strong>Keep Studio running</strong>The client connects through localhost:3000.</p></div></div>
+  return <div className="onboarding-copy"><p className="eyebrow">MCP server</p><h1>Let other AI tools<br/>remember with you.</h1><p className="onboarding-lede">MCP lets compatible clients reach this project through its protected server endpoint.</p>
+    <div className="mcp-explainer"><div><span>1</span><p><strong>Generate a credential</strong>A personal bearer token protects the MCP endpoint.</p></div><div><span>2</span><p><strong>Add the configuration</strong>Paste the JSON into your MCP-compatible client.</p></div><div><span>3</span><p><strong>Keep Studio running</strong>The client connects through the URL shown below.</p></div></div>
     {!ready?<button className="generate-token" onClick={onGenerate} disabled={busy}>{busy?<Loader2 className="spin" size={15}/>:<KeyRound size={15}/>}Generate personal MCP credential</button>:<div className="connection-success compact"><span><Check size={15}/></span><div><strong>MCP credential is ready</strong><p>{token?'Copy the configuration below now. The full token is shown only in this setup step.':'A credential already exists. Rotate it to reveal a new copyable token.'}</p></div>{!token&&<button onClick={onGenerate}>Rotate</button>}</div>}
     <div className="config-block"><div><span>MCP client configuration</span><button onClick={()=>onCopy(config,'config')}><Copy size={12}/>{copied==='config'?'Copied':'Copy JSON'}</button></div><pre>{config}</pre></div>
     {token&&<div className="token-row"><div><span>Bearer token</span><code>{token}</code></div><button onClick={()=>onCopy(token,'token')}><Copy size={12}/>{copied==='token'?'Copied':'Copy'}</button></div>}

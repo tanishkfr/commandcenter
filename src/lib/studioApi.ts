@@ -1,15 +1,17 @@
 import type { ArtifactStatus, ArtifactType, MemoryArtifact, SearchResult, SourceType, StudioProject, StudioSession, StudioSource, TimelineEvent } from './creativeMemory';
 
 export type ConnectionStatus={
-  aiConfigured:boolean;aiModel:string;aiProvider:'NVIDIA NIM';mcpConfigured:boolean;mcpUrl:string;mcpTokenPreview:string;dataFile:string;
+  aiConfigured:boolean;aiModel:string;aiProvider:'NVIDIA NIM';mcpConfigured:boolean;mcpUrl:string;mcpTokenPreview:string;dataFile:string;runtime:'local'|'vercel';configWritable:boolean;storageMode:'local-file'|'vercel-blob';
 };
 export type Bootstrap={
   project:StudioProject;projects:StudioProject[];sessions:StudioSession[];activeSession:StudioSession|null;
-  artifacts:MemoryArtifact[];sources:StudioSource[];events:TimelineEvent[];aiConfigured:boolean;
+  artifacts:MemoryArtifact[];sources:StudioSource[];events:TimelineEvent[];aiConfigured:boolean;storageMode:'local-file'|'vercel-blob';
 };
 
 async function request<T>(url:string,init?:RequestInit):Promise<T>{
   const response=await fetch(url,{...init,headers:{'Content-Type':'application/json',...(init?.headers||{})}});
+  const contentType=response.headers.get('content-type')||'';
+  if(!contentType.includes('application/json'))throw new Error(response.ok?'The hosted API returned a web page instead of data. Check the Vercel API rewrite and redeploy.':'The studio API is unavailable ('+response.status+'). Check the deployment configuration.');
   const body=await response.json().catch(()=>({}));
   if(!response.ok)throw new Error(body.error||body.message||'Request failed');
   return body as T;
