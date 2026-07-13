@@ -1,11 +1,12 @@
 import { randomBytes } from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
-import { testGeminiConnection } from './creativeAI.js';
+import { DEFAULT_NIM_MODEL, testNvidiaConnection } from './creativeAI.js';
 
 export interface ConnectionStatus {
   aiConfigured:boolean;
   aiModel:string;
+  aiProvider:'NVIDIA NIM';
   mcpConfigured:boolean;
   mcpUrl:string;
   mcpTokenPreview:string;
@@ -13,7 +14,7 @@ export interface ConnectionStatus {
 }
 
 const ENV_FILE=path.join(process.cwd(),'.env');
-const meaningful=(value:string|undefined,placeholder:string)=>Boolean(value&&value.trim()&&value!==placeholder&&!value.includes('MY_'));
+const meaningful=(value:string|undefined,placeholder:string)=>Boolean(value&&value.trim()&&value!==placeholder&&!value.includes('MY_')&&!value.includes('YOUR_'));
 
 async function readEnvText(){
   try{return await fs.readFile(ENV_FILE,'utf8')}catch{return ''}
@@ -47,12 +48,13 @@ async function writeValues(updates:Record<string,string|undefined>){
 }
 
 export async function connectionStatus():Promise<ConnectionStatus>{
-  const apiKey=process.env.GEMINI_API_KEY||await envValue('GEMINI_API_KEY');
-  const model=process.env.GEMINI_MODEL||await envValue('GEMINI_MODEL')||'gemini-2.5-flash';
+  const apiKey=process.env.NVIDIA_API_KEY||await envValue('NVIDIA_API_KEY');
+  const model=process.env.NVIDIA_MODEL||await envValue('NVIDIA_MODEL')||DEFAULT_NIM_MODEL;
   const mcpToken=process.env.API_KEY||await envValue('API_KEY');
   return{
     aiConfigured:meaningful(apiKey,''),
     aiModel:model,
+    aiProvider:'NVIDIA NIM',
     mcpConfigured:meaningful(mcpToken,'change-me'),
     mcpUrl:'http://localhost:3000/api/mcp/sse',
     mcpTokenPreview:meaningful(mcpToken,'change-me')?'••••'+String(mcpToken).slice(-4):'',
@@ -61,17 +63,24 @@ export async function connectionStatus():Promise<ConnectionStatus>{
 }
 
 export async function configureAI(apiKey:string,model:string){
-  const key=apiKey.trim();const selectedModel=model.trim()||'gemini-2.5-flash';
-  if(key.length<20)throw new Error('Enter a valid Gemini API key.');
-  await testGeminiConnection(key,selectedModel);
-  process.env.GEMINI_API_KEY=key;process.env.GEMINI_MODEL=selectedModel;
-  await writeValues({GEMINI_API_KEY:key,GEMINI_MODEL:selectedModel});
+  const key=apiKey.trim();const selectedModel=model.trim()||DEFAULT_NIM_MODEL;
+  if(key.length<20)throw new Error('Enter a valid NVIDIA API key.');
+  await testNvidiaConnection(key,selectedModel);
+  process.env.NVIDIA_API_KEY=key;process.env.NVIDIA_MODEL=selectedModel;
+  delete process.env.GEMINI_API_KEY;delete process.env.GEMINI_MODEL;
+  await writeValues({
+    NVIDIA_API_KEY:key,
+    NVIDIA_MODEL:selectedModel,
+    NVIDIA_BASE_URL:'https://integrate.api.nvidia.com/v1',
+    GEMINI_API_KEY:undefined,
+    GEMINI_MODEL:undefined
+  });
   return connectionStatus();
 }
 
 export async function disconnectAI(){
-  delete process.env.GEMINI_API_KEY;
-  await writeValues({GEMINI_API_KEY:undefined});
+  delete process.env.NVIDIA_API_KEY;delete process.env.NVIDIA_MODEL;delete process.env.NVIDIA_BASE_URL;
+  await writeValues({NVIDIA_API_KEY:undefined,NVIDIA_MODEL:undefined,NVIDIA_BASE_URL:undefined});
   return connectionStatus();
 }
 

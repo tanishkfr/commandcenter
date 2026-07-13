@@ -19,7 +19,7 @@ export function createCreativeRouter(onChange:(event:string,data:unknown)=>void)
   }));
 
   router.post('/settings/ai',handle(async(req,res)=>{
-    const status=await configureAI(String(req.body?.apiKey||''),String(req.body?.model||'gemini-2.5-flash'));
+    const status=await configureAI(String(req.body?.apiKey||''),String(req.body?.model||'meta/llama-3.3-70b-instruct'));
     onChange('connections-updated',{aiConfigured:true});res.json(status);
   }));
 

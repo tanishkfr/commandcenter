@@ -1,9 +1,27 @@
-import { GoogleGenAI } from '@google/genai';
 import type { ArtifactType, ExtractedArtifact, MemoryArtifact, StudioMessage, StudioProject, StudioSession, StudioSource } from './creativeMemory.js';
 
 type Context={project:StudioProject;session:StudioSession;artifacts:MemoryArtifact[];sources:StudioSource[]};
-const configured=()=>{const key=process.env.GEMINI_API_KEY||'';return Boolean(key&&!key.includes('MY_GEMINI'))};
-const client=()=>new GoogleGenAI({apiKey:process.env.GEMINI_API_KEY||''});
+type NimMessage={role:'system'|'user'|'assistant';content:string};
+type NimResponse={choices?:Array<{message?:{content?:string}}> ;error?:{message?:string}};
+
+const DEFAULT_NIM_BASE_URL='https://integrate.api.nvidia.com/v1';
+export const DEFAULT_NIM_MODEL='meta/llama-3.3-70b-instruct';
+const configured=()=>{const key=process.env.NVIDIA_API_KEY||'';return Boolean(key&&!key.includes('MY_NVIDIA')&&!key.includes('YOUR_NVIDIA'))};
+
+async function nimChat(options:{apiKey:string;model:string;messages:NimMessage[];temperature?:number;maxTokens?:number}){
+  const baseUrl=(process.env.NVIDIA_BASE_URL||DEFAULT_NIM_BASE_URL).replace(/\/+$/,'');
+  const response=await fetch(baseUrl+'/chat/completions',{
+    method:'POST',
+    headers:{Authorization:'Bearer '+options.apiKey,'Content-Type':'application/json',Accept:'application/json'},
+    body:JSON.stringify({model:options.model,messages:options.messages,temperature:options.temperature??.35,top_p:.9,max_tokens:options.maxTokens??800,stream:false}),
+    signal:AbortSignal.timeout(45000)
+  });
+  const payload=await response.json().catch(()=>({})) as NimResponse;
+  if(!response.ok)throw new Error('NVIDIA NIM request failed: '+(payload.error?.message||response.statusText||'Connection failed'));
+  const content=payload.choices?.[0]?.message?.content?.trim();
+  if(!content)throw new Error('NVIDIA NIM returned an empty response.');
+  return content;
+}
 
 function relevant(message:string,artifacts:MemoryArtifact[]){
   const terms=message.toLowerCase().split(/\W+/).filter(term=>term.length>3);
@@ -36,8 +54,16 @@ export async function generateStudioReply(context:Context,message:string){
       'Recent conversation:\n'+context.session.messages.slice(-12).map(m=>(m.role==='user'?'Designer':'Studio')+': '+m.content).join('\n'),
       'Designer: '+message
     ].join('\n\n');
-    const response=await client().models.generateContent({model:process.env.GEMINI_MODEL||'gemini-2.5-flash',contents:prompt});
-    const text=response.text?.trim();if(!text)throw new Error('Empty AI response');
+    const text=await nimChat({
+      apiKey:process.env.NVIDIA_API_KEY||'',
+      model:process.env.NVIDIA_MODEL||DEFAULT_NIM_MODEL,
+      messages:[
+        {role:'system',content:'You are Studio, a calm creative collaborator for an interaction designer. Think with the designer, surface tension, and suggest one concrete next move. Keep the response below 140 words.'},
+        {role:'user',content:prompt}
+      ],
+      temperature:.45,
+      maxTokens:360
+    });
     return{text,citedArtifactIds:related.map(item=>item.id),mode:'ai' as const};
   }catch(error){console.error('Studio AI failed; using local collaborator:',error);return localReply(context,message)}
 }
@@ -80,8 +106,19 @@ export async function extractSessionMemory(context:Context):Promise<{artifacts:E
       'Existing memory:\n'+context.artifacts.map(a=>a.type+': '+a.title).join('\n'),
       'Conversation:\n'+context.session.messages.map(m=>'['+m.id+'] '+(m.role==='user'?'Designer':'Studio')+': '+m.content).join('\n')
     ].join('\n\n');
-    const response=await client().models.generateContent({model:process.env.GEMINI_MODEL||'gemini-2.5-flash',contents:prompt,config:{responseMimeType:'application/json'}});
-    const parsed=JSON.parse(response.text||'{}') as {artifacts?:unknown[]};
+    const content=await nimChat({
+      apiKey:process.env.NVIDIA_API_KEY||'',
+      model:process.env.NVIDIA_MODEL||DEFAULT_NIM_MODEL,
+      messages:[
+        {role:'system',content:'You extract structured creative project memory. Output JSON only, with no markdown or commentary.'},
+        {role:'user',content:prompt}
+      ],
+      temperature:.1,
+      maxTokens:1200
+    });
+    const start=content.indexOf('{');const end=content.lastIndexOf('}');
+    if(start<0||end<=start)throw new Error('NVIDIA NIM did not return JSON.');
+    const parsed=JSON.parse(content.slice(start,end+1)) as {artifacts?:unknown[]};
     const artifacts=(parsed.artifacts||[]).filter((item):item is any=>Boolean(item&&typeof item==='object'&&isType((item as any).type)&&typeof(item as any).title==='string')).map(item=>({
       type:item.type,title:item.title,body:typeof item.body==='string'?item.body:'',confidence:typeof item.confidence==='number'?Math.min(1,Math.max(0,item.confidence)):.75,
       sourceMessageIds:Array.isArray(item.sourceMessageIds)?item.sourceMessageIds.filter((value:unknown)=>typeof value==='string'):[],tags:Array.isArray(item.tags)?item.tags.filter((value:unknown)=>typeof value==='string'):[]
@@ -91,9 +128,13 @@ export async function extractSessionMemory(context:Context):Promise<{artifacts:E
 }
 
 
-export async function testGeminiConnection(apiKey:string,model:string){
-  const probe=new GoogleGenAI({apiKey});
-  const response=await probe.models.generateContent({model,contents:'Reply with exactly CONNECTED.'});
-  if(!response.text?.trim())throw new Error('Gemini returned an empty response.');
+export async function testNvidiaConnection(apiKey:string,model:string){
+  await nimChat({
+    apiKey,
+    model:model||DEFAULT_NIM_MODEL,
+    messages:[{role:'user',content:'Reply with exactly CONNECTED.'}],
+    temperature:0,
+    maxTokens:16
+  });
   return true;
 }

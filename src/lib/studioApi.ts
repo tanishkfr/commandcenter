@@ -1,7 +1,7 @@
 import type { ArtifactStatus, ArtifactType, MemoryArtifact, SearchResult, SourceType, StudioProject, StudioSession, StudioSource, TimelineEvent } from './creativeMemory';
 
 export type ConnectionStatus={
-  aiConfigured:boolean;aiModel:string;mcpConfigured:boolean;mcpUrl:string;mcpTokenPreview:string;dataFile:string;
+  aiConfigured:boolean;aiModel:string;aiProvider:'NVIDIA NIM';mcpConfigured:boolean;mcpUrl:string;mcpTokenPreview:string;dataFile:string;
 };
 export type Bootstrap={
   project:StudioProject;projects:StudioProject[];sessions:StudioSession[];activeSession:StudioSession|null;

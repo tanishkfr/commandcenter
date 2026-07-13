@@ -29,7 +29,7 @@ Install dependencies:
 npm install
 ~~~
 
-Optional: copy the environment template and add a Gemini key for richer responses and extraction.
+Optional: copy the environment template and add an NVIDIA API key for richer responses and extraction.
 
 ~~~bash
 copy .env.example .env
@@ -53,22 +53,23 @@ It walks through:
 
 1. how conversations become durable project memory;
 2. where personal data is stored;
-3. testing and saving an optional Gemini connection;
+3. testing and saving an optional NVIDIA NIM connection;
 4. generating a protected MCP credential;
 5. copying a complete MCP client configuration;
 6. starting the first real conversation.
 
-Gemini keys and MCP credentials are saved only to the ignored local `.env` file. The full MCP token is shown when it is generated, so copy it into your client before leaving that setup step.
+NVIDIA API keys and MCP credentials are saved only to the ignored local `.env` file. The full MCP token is shown when it is generated, so copy it into your client before leaving that setup step.
 
 ## AI configuration
 
 Without configuration, Studio runs in local-intelligence mode. Conversations, capture, persistence, search, import, and editing all continue to work.
 
-For Gemini-backed thinking and extraction, create a .env file:
+For NVIDIA NIM-backed thinking and extraction, create a .env file:
 
 ~~~env
-GEMINI_API_KEY=your_key
-GEMINI_MODEL=gemini-2.5-flash
+NVIDIA_API_KEY=your_key
+NVIDIA_MODEL=meta/llama-3.3-70b-instruct
+NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
 ~~~
 
 If an AI request fails, Studio automatically falls back to local mode rather than losing the conversation.
@@ -115,7 +116,7 @@ npm run build
 - React 19, TypeScript, Vite, Motion, and Lucide for the application
 - Express for the local API
 - Atomic JSON persistence for a zero-setup personal installation
-- Optional Google Gemini integration
+- Optional NVIDIA NIM integration
 - Local heuristic collaborator and extraction fallback
 - Server-sent events, MCP, command gateway, undo, and the existing project API remain available
 

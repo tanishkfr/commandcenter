@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, Brain, Check, CheckCircle2, Copy, Database, ExternalLink, KeyRound, Loader2, MessageCircleMore, Plug, ShieldCheck, Sparkles, X } from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
 import { studioApi, type Bootstrap, type ConnectionStatus } from './lib/studioApi';
 
 type Props={data:Bootstrap;onClose:()=>void;onConfigured:()=>Promise<void>|void};
@@ -17,7 +16,7 @@ export default function Onboarding({data,onClose,onConfigured}:Props){
   const [step,setStep]=useState(0);
   const [status,setStatus]=useState<ConnectionStatus|null>(null);
   const [apiKey,setApiKey]=useState('');
-  const [model,setModel]=useState('gemini-2.5-flash');
+  const [model,setModel]=useState('meta/llama-3.3-70b-instruct');
   const [mcpToken,setMcpToken]=useState('');
   const [mcpConfig,setMcpConfig]=useState('');
   const [busy,setBusy]=useState(false);
@@ -33,7 +32,7 @@ export default function Onboarding({data,onClose,onConfigured}:Props){
   const configureAI=async()=>{
     setBusy(true);setError('');
     try{const nextStatus=await studioApi.configureAI(apiKey,model);setStatus(nextStatus);setApiKey('');await onConfigured();next()}
-    catch(err:any){setError(err.message||'Could not connect to Gemini.')}
+    catch(err:any){setError(err.message||'Could not connect to NVIDIA NIM.')}
     finally{setBusy(false)}
   };
 
@@ -60,8 +59,8 @@ export default function Onboarding({data,onClose,onConfigured}:Props){
     }
   },null,2),[mcpConfig,status]);
 
-  return <motion.div className="onboarding-backdrop" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}>
-    <motion.section className="onboarding-shell" initial={{opacity:0,scale:.985,y:14}} animate={{opacity:1,scale:1,y:0}} exit={{opacity:0,scale:.99}}>
+  return <div className="onboarding-backdrop">
+    <section className="onboarding-shell">
       <aside className="onboarding-rail">
         <div className="onboarding-brand"><div className="mark"><span/><span/><span/></div><div><strong>Creative Memory</strong><small>Personal studio setup</small></div></div>
         <nav>{steps.map((item,index)=>{const Icon=item.icon;return <button key={item.label} className={index===step?'active':index<step?'complete':''} onClick={()=>index<=step&&setStep(index)}><span>{index<step?<Check size={12}/>:<Icon size={13}/>}</span><em>{item.label}</em></button>})}</nav>
@@ -71,15 +70,13 @@ export default function Onboarding({data,onClose,onConfigured}:Props){
       <main className="onboarding-main">
         <button className="onboarding-close" onClick={complete} aria-label="Close onboarding"><X size={17}/></button>
         <div className="onboarding-progress"><span style={{width:((step+1)/steps.length*100)+'%'}}/></div>
-        <AnimatePresence mode="wait">
-          <motion.div className="onboarding-step" key={step} initial={{opacity:0,x:14}} animate={{opacity:1,x:0}} exit={{opacity:0,x:-12}} transition={{duration:.22}}>
-            {step===0&&<Welcome/>}
+        <div className="onboarding-step" key={step}>
+          {step===0&&<Welcome/>}
             {step===1&&<StudioSetup data={data} status={status}/>}
             {step===2&&<AiSetup status={status} apiKey={apiKey} model={model} busy={busy} onKey={setApiKey} onModel={setModel} onConnect={configureAI} onSkip={next}/>}
             {step===3&&<McpSetup status={status} token={mcpToken} config={configText} busy={busy} copied={copied} acknowledged={mcpAcknowledged} onGenerate={generateMcp} onCopy={copy} onAcknowledge={setMcpAcknowledged}/>}
             {step===4&&<Ready status={status} projectName={data.project.name}/>}
-          </motion.div>
-        </AnimatePresence>
+        </div>
 
         {error&&<div className="onboarding-error">{error}</div>}
         <footer className="onboarding-actions">
@@ -93,8 +90,8 @@ export default function Onboarding({data,onClose,onConfigured}:Props){
           </div>
         </footer>
       </main>
-    </motion.section>
-  </motion.div>
+    </section>
+  </div>
 }
 
 function Welcome(){
@@ -112,14 +109,14 @@ function StudioSetup({data,status}:{data:Bootstrap;status:ConnectionStatus|null}
 }
 
 function AiSetup({status,apiKey,model,busy,onKey,onModel,onConnect,onSkip}:{status:ConnectionStatus|null;apiKey:string;model:string;busy:boolean;onKey:(value:string)=>void;onModel:(value:string)=>void;onConnect:()=>void;onSkip:()=>void}){
-  return <div className="onboarding-copy"><p className="eyebrow">AI connection</p><h1>Choose how Studio<br/>thinks with you.</h1><p className="onboarding-lede">Gemini gives you richer project-aware conversation and more nuanced memory extraction. Local intelligence remains available without a key.</p>
-    {status?.aiConfigured?<div className="connection-success"><span><Check size={15}/></span><div><strong>Gemini is connected</strong><p>{status.aiModel} is ready for conversation and capture.</p></div></div>:<div className="connection-form">
-      <label><span>Gemini API key</span><div className="secret-input"><KeyRound size={14}/><input type="password" autoComplete="off" value={apiKey} onChange={event=>onKey(event.target.value)} placeholder="Paste your Gemini API key"/></div><small>Validated directly with Google, then saved only to your local .env file.</small></label>
-      <label><span>Model</span><select value={model} onChange={event=>onModel(event.target.value)}><option value="gemini-2.5-flash">Gemini 2.5 Flash</option><option value="gemini-2.5-pro">Gemini 2.5 Pro</option><option value="gemini-2.0-flash">Gemini 2.0 Flash</option></select></label>
+  return <div className="onboarding-copy"><p className="eyebrow">AI connection</p><h1>Choose how Studio<br/>thinks with you.</h1><p className="onboarding-lede">NVIDIA NIM gives you richer project-aware conversation and more nuanced memory extraction. Local intelligence remains available without a key.</p>
+    {status?.aiConfigured?<div className="connection-success"><span><Check size={15}/></span><div><strong>NVIDIA NIM is connected</strong><p>{status.aiModel} is ready for conversation and capture.</p></div></div>:<div className="connection-form">
+      <label><span>NVIDIA API key</span><div className="secret-input"><KeyRound size={14}/><input type="password" autoComplete="off" value={apiKey} onChange={event=>onKey(event.target.value)} placeholder="Paste your NVIDIA API key"/></div><small>Validated with NVIDIA, then saved only to your local .env file.</small></label>
+      <label><span>Model</span><select value={model} onChange={event=>onModel(event.target.value)}><option value="meta/llama-3.3-70b-instruct">Llama 3.3 70B - balanced</option><option value="nvidia/llama-3.3-nemotron-super-49b-v1.5">Nemotron Super 49B - deeper reasoning</option></select></label>
       <div className="connection-choice"><button className="onboarding-primary" onClick={onConnect} disabled={busy||apiKey.length<20}>{busy?<Loader2 className="spin" size={14}/>:<Sparkles size={14}/>}Test and connect</button><button className="quiet-link" onClick={onSkip}>Use local intelligence for now</button></div>
-      <a className="external-help" href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">Get a Gemini API key<ExternalLink size={12}/></a>
+      <a className="external-help" href="https://build.nvidia.com/settings/api-keys" target="_blank" rel="noreferrer">Get an NVIDIA API key<ExternalLink size={12}/></a>
     </div>}
-    <div className="mode-comparison"><div><strong>Local intelligence</strong><span>Always available</span><p>Heuristic conversation support and memory extraction. Private and offline.</p></div><div className="recommended"><strong>Gemini connection</strong><span>Recommended</span><p>Deeper reasoning, better synthesis, and more precise capture.</p></div></div>
+    <div className="mode-comparison"><div><strong>Local intelligence</strong><span>Always available</span><p>Heuristic conversation support and memory extraction. Private and offline.</p></div><div className="recommended"><strong>NVIDIA NIM</strong><span>Recommended</span><p>Hosted open models, deeper synthesis, and more precise capture.</p></div></div>
   </div>
 }
 
@@ -138,7 +135,7 @@ function McpSetup({status,token,config,busy,copied,acknowledged,onGenerate,onCop
 function Ready({status,projectName}:{status:ConnectionStatus|null;projectName:string}){
   const checklist=[
     {done:true,label:'Local project memory',detail:projectName+' is ready'},
-    {done:Boolean(status?.aiConfigured),label:'Gemini connection',detail:status?.aiConfigured?status.aiModel:'Local mode selected'},
+    {done:Boolean(status?.aiConfigured),label:'NVIDIA NIM connection',detail:status?.aiConfigured?status.aiModel:'Local mode selected'},
     {done:Boolean(status?.mcpConfigured),label:'MCP server credential',detail:status?.mcpConfigured?'Protected endpoint ready':'Can be configured later'},
     {done:true,label:'Automatic persistence',detail:'Every message and memory is saved'}
   ];
