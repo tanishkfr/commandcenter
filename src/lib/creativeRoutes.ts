@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { creativeMemoryStore } from './creativeMemory.js';
 import { extractSessionMemory, generateStudioReply } from './creativeAI.js';
-import { configureAI, connectionStatus, disconnectAI, generateMcpCredential } from './connectionSettings.js';
+import { configureAI, connectionStatus, disconnectAI, generateMcpCredential, resetConnections } from './connectionSettings.js';
 
 export function createCreativeRouter(onChange:(event:string,data:unknown)=>void){
   const router=Router();
@@ -31,6 +31,16 @@ export function createCreativeRouter(onChange:(event:string,data:unknown)=>void)
   router.post('/settings/mcp',handle(async(_req,res)=>{
     const result=await generateMcpCredential();
     onChange('connections-updated',{mcpConfigured:true});res.status(201).json(result);
+  }));
+
+
+  router.post('/settings/reset',handle(async(req,res)=>{
+    await creativeMemoryStore.resetState();
+    const clearConnections=req.body?.clearConnections!==false;
+    const connections=clearConnections?await resetConnections():await connectionStatus();
+    const bootstrap=await creativeMemoryStore.bootstrap();
+    onChange('studio-reset',{clearConnections});
+    res.json({bootstrap,connections});
   }));
 
   router.post('/projects',handle(async(req,res)=>{

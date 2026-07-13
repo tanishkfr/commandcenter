@@ -17,6 +17,8 @@ The conversation is the interface. The project is the memory. Studio is the libr
 - Search across conversations, memory, rationale, and sources
 - Follow a chronological project history
 - Export all personal data as JSON
+- Reset to a blank studio, with optional NVIDIA NIM and MCP credential removal
+- Review the product purpose and memory workflow in the in-app About section
 - Work without an AI key through the built-in local collaborator and extractor
 
 There is intentionally no account system. This build is designed for one person running it locally.
@@ -98,10 +100,10 @@ The first run creates three starter projects. Everything you add after that is p
 
 ## Keyboard shortcuts
 
-- Ctrl/Cmd + K — search project memory
-- Shift + Ctrl/Cmd + S — capture the current session
-- / — focus the conversation composer
-- Escape — close the active overlay
+- Ctrl + K - search project memory
+- Ctrl + Shift + S - capture the current session
+- / - focus the conversation composer
+- Escape - close the active overlay
 
 ## Verification
 

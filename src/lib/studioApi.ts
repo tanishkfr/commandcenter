@@ -33,4 +33,5 @@ export const studioApi={
   configureAI:(apiKey:string,model:string)=>request<ConnectionStatus>('/api/studio/settings/ai',{method:'POST',body:JSON.stringify({apiKey,model})}),
   disconnectAI:()=>request<ConnectionStatus>('/api/studio/settings/ai',{method:'DELETE'}),
   generateMcp:()=>request<{token:string;url:string;config:Record<string,unknown>}>('/api/studio/settings/mcp',{method:'POST'}),
+  resetStudio:(clearConnections=true)=>request<{bootstrap:Bootstrap;connections:ConnectionStatus}>('/api/studio/settings/reset',{method:'POST',body:JSON.stringify({clearConnections})}),
 };

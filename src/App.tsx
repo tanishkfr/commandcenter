@@ -1,8 +1,8 @@
 import { CSSProperties, FormEvent, ReactNode, useEffect, useRef, useState } from 'react';
 import {
   ArrowRight, ArrowUp, ArrowUpRight, Bookmark, Brain, Check, CheckCircle2, ChevronDown, Circle, Clock3,
-  Command, Download, Edit3, Feather, CircleHelp, FileInput, Figma, Github, History, Layers3, Link2, Loader2, MessageCircleMore,
-  Mic2, MoreHorizontal, Plus, Search, Settings2, Sparkles, Trash2, WandSparkles, X
+  Download, Edit3, Feather, CircleHelp, FileInput, Figma, Github, History, Info, Layers3, Link2, Loader2, MessageCircleMore,
+  Mic2, MoreHorizontal, Plus, RotateCcw, Search, Settings2, ShieldCheck, Sparkles, Trash2, WandSparkles, X
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import Onboarding from './Onboarding';
@@ -22,8 +22,8 @@ function relativeDate(value:string){
 }
 function artifactClass(type:ArtifactType){return type==='decision'?'decision':type==='principle'?'principle':type==='question'?'question':type==='risk'?'risk':'experiment'}
 
-function Sidebar({data,surface,onSurface,onProject,onNewProject}:{
-  data:Bootstrap;surface:Surface;onSurface:(value:Surface)=>void;onProject:(id:string)=>void;onNewProject:()=>void
+function Sidebar({data,surface,onSurface,onProject,onNewProject,onSettings}:{
+  data:Bootstrap;surface:Surface;onSurface:(value:Surface)=>void;onProject:(id:string)=>void;onNewProject:()=>void;onSettings:()=>void
 }){
   const nav=[{id:'studio' as const,label:'Studio',icon:MessageCircleMore},{id:'memory' as const,label:'Memory',icon:Brain},{id:'history' as const,label:'History',icon:History}];
   return <aside className="sidebar">
@@ -35,7 +35,7 @@ function Sidebar({data,surface,onSurface,onProject,onNewProject}:{
         <span className="project-sigil" style={{'--project-color':project.color} as CSSProperties}>{project.name[0]}</span><span className="project-name">{project.name}</span>{project.id===data.project.id&&<span className="live-dot"/>}
       </button>)}
     </div>
-    <div className="sidebar-footer"><button className="profile-button"><span className="avatar">SN</span><span><strong>Personal studio</strong><small>Local-first memory</small></span><ChevronDown size={13}/></button></div>
+    <div className="sidebar-footer"><button className="profile-button" onClick={onSettings}><span className="avatar">TS</span><span><strong>Personal studio</strong><small>Local-first memory</small></span><ChevronDown size={13}/></button></div>
   </aside>
 }
 
@@ -44,7 +44,7 @@ function Topbar({data,onSearch,onSettings,onHelp}: {data:Bootstrap;onSearch:()=>
     <div className="project-switcher"><span className="project-dot" style={{background:data.project.color}}/><span>{data.project.name}</span><span className="topbar-context">/ {data.activeSession?.title||'No conversation'}</span></div>
     <div className="topbar-actions">
       <span className={'sync-state '+(data.aiConfigured?'ai-on':'')}><span/>{data.aiConfigured?'NVIDIA NIM connected':'Local intelligence'}</span>
-      <button className="search-button" onClick={onSearch}><Search size={14}/><span>Find anything</span><kbd><Command size={10}/> K</kbd></button>
+      <button className="search-button" onClick={onSearch}><Search size={14}/><span>Find anything</span><kbd>Ctrl K</kbd></button>
       <button className="icon-button" aria-label="Open setup guide" title="Setup guide" onClick={onHelp}><CircleHelp size={16}/></button><button className="icon-button" aria-label="Settings" title="Settings" onClick={onSettings}><Settings2 size={16}/></button>
     </div>
   </header>
@@ -85,7 +85,7 @@ function Composer({disabled,thinking,onSend,onCapture}: {disabled:boolean;thinki
   return <div className="composer-wrap"><form className="composer" onSubmit={submit}>
     <textarea ref={ref} rows={1} value={value} disabled={disabled} onChange={e=>setValue(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();submit()}}} placeholder={disabled?'Start a conversation first…':'Continue the thought…'}/>
     <div className="composer-actions"><div><button type="button" className="composer-tool"><Plus size={15}/></button><button type="button" className="composer-tool"><Mic2 size={15}/></button></div><button className={value.trim()?'send-button ready':'send-button'} disabled={disabled||thinking}><ArrowUp size={15}/></button></div>
-  </form><div className="capture-row"><span>{thinking?'Thinking with project memory…':'Everything here stays in this project'}</span><button className="capture-button" disabled={disabled||thinking} onClick={onCapture}><Sparkles size={14}/><span>Capture session</span><kbd>⇧ ⌘ S</kbd></button></div></div>
+  </form><div className="capture-row"><span>{thinking?'Thinking with project memory…':'Everything here stays in this project'}</span><button className="capture-button" disabled={disabled||thinking} onClick={onCapture}><Sparkles size={14}/><span>Capture session</span><kbd>Ctrl Shift S</kbd></button></div></div>
 }
 
 function StudioView({data,session,thinking,onSend,onCapture,onSession,onNewSession,onImport,onSource,onArtifact}:{
@@ -149,11 +149,42 @@ function SimpleDialog({type,data,onClose,onDone}: {type:Exclude<Dialog,'settings
 
 function SettingsDialog({data,onClose,onProject,onOnboarding}: {data:Bootstrap;onClose:()=>void;onProject:(project:StudioProject)=>void;onOnboarding:()=>void}){
   const [name,setName]=useState(data.project.name);const [description,setDescription]=useState(data.project.description);const [saving,setSaving]=useState(false);
+  const [confirmingReset,setConfirmingReset]=useState(false);const [clearConnections,setClearConnections]=useState(true);const [resetting,setResetting]=useState(false);const [error,setError]=useState('');
   const save=async()=>{setSaving(true);try{onProject(await studioApi.updateProject(data.project.id,{name,description}));onClose()}finally{setSaving(false)}};
-  return <DialogShell onClose={onClose}><div className="modal-heading"><div><p className="eyebrow">Personal studio</p><h2>Settings</h2><span>Your project data is stored locally in <code>.memory/studio.json</code>.</span></div><button className="icon-button" onClick={onClose}><X size={17}/></button></div>
-    <label><span>Project name</span><input value={name} onChange={e=>setName(e.target.value)}/></label><label><span>Project description</span><textarea value={description} onChange={e=>setDescription(e.target.value)}/></label><div className="modal-actions"><button className="save-memory" onClick={save} disabled={saving||!name.trim()}>{saving?<Loader2 className="spin" size={13}/>:<Check size={13}/>}Save project</button></div>
-    <div className="settings-card"><span className={'status-light '+(data.aiConfigured?'online':'')}/><div><strong>{data.aiConfigured?'NVIDIA NIM is connected':'Local intelligence is active'}</strong><p>{data.aiConfigured?'Conversations and capture use your configured NVIDIA NIM model.':'The product works offline. Connect NVIDIA NIM in the setup guide for richer conversation and extraction.'}</p></div></div>
-    <a className="export-button" href="/api/studio/export"><Download size={14}/>Export all personal data</a><button className="export-button replay-setup" onClick={onOnboarding}><CircleHelp size={14}/>Replay setup guide</button>
+  const reset=async()=>{setResetting(true);setError('');try{await studioApi.resetStudio(clearConnections);localStorage.removeItem('creative-memory-onboarding-v1');window.location.reload()}catch(err:any){setError(err.message||'Could not reset the studio.');setResetting(false)}};
+  return <DialogShell onClose={onClose} wide><div className="modal-heading"><div><p className="eyebrow">Personal studio</p><h2>Settings</h2><span>Manage this project, your connections, and local studio data.</span></div><button className="icon-button" onClick={onClose} aria-label="Close settings"><X size={17}/></button></div>
+    <div className="settings-layout">
+      <section className="settings-section">
+        <div className="settings-section-heading"><div><span>Workspace</span><h3>Current project</h3></div><small>Saved locally</small></div>
+        <label><span>Project name</span><input value={name} onChange={e=>setName(e.target.value)}/></label>
+        <label><span>Project description</span><textarea value={description} onChange={e=>setDescription(e.target.value)}/></label>
+        <div className="settings-row-actions"><button className="save-memory" onClick={save} disabled={saving||!name.trim()}>{saving?<Loader2 className="spin" size={14}/>:<Check size={14}/>}Save changes</button></div>
+      </section>
+      <div className="settings-card-grid">
+        <section className="settings-action-card">
+          <span className={'status-light '+(data.aiConfigured?'online':'')}/>
+          <div><small>AI connection</small><strong>{data.aiConfigured?'NVIDIA NIM connected':'Local intelligence active'}</strong><p>{data.aiConfigured?'Conversation and capture use your selected NIM model.':'Studio remains fully usable offline without an API key.'}</p></div>
+        </section>
+        <section className="settings-action-card">
+          <ShieldCheck size={17}/><div><small>Your data</small><strong>Local and portable</strong><p>Projects live in <code>.memory/studio.json</code> and can be exported at any time.</p></div>
+        </section>
+      </div>
+      <div className="settings-quick-actions"><a href="/api/studio/export"><Download size={15}/><span><strong>Export studio data</strong><small>Download a complete JSON backup</small></span></a><button onClick={onOnboarding}><CircleHelp size={15}/><span><strong>Setup guide</strong><small>Review NVIDIA NIM and MCP setup</small></span></button></div>
+      <section className="about-card">
+        <div className="about-heading"><span><Info size={17}/></span><div><p className="eyebrow">About</p><h3>Creative Memory Studio</h3></div></div>
+        <p>Creative Memory Studio is a local-first thinking workspace. Talk through a project with AI, capture the decisions and questions worth keeping, and recover the reasoning later instead of losing it in chat history.</p>
+        <div className="about-flow"><span>Conversation</span><ArrowRight size={13}/><span>Capture</span><ArrowRight size={13}/><span>Project memory</span></div>
+        <div className="about-details"><span>Local project storage</span><span>Optional NVIDIA NIM</span><span>MCP access for other AI tools</span></div>
+      </section>
+      <section className="danger-zone">
+        <div><small>Fresh start</small><h3>Reset the studio</h3><p>Permanently remove every project, conversation, memory, source, and history event. A single blank project will be created and onboarding will restart.</p></div>
+        {!confirmingReset?<button className="reset-button" onClick={()=>setConfirmingReset(true)}><RotateCcw size={14}/>Reset studio data</button>:<div className="reset-confirm">
+          <label><input type="checkbox" checked={clearConnections} onChange={event=>setClearConnections(event.target.checked)}/><span><strong>Also remove connection credentials</strong><small>Disconnect NVIDIA NIM and invalidate the current MCP token.</small></span></label>
+          {error&&<p className="form-error">{error}</p>}
+          <div><button className="text-button" onClick={()=>setConfirmingReset(false)} disabled={resetting}>Cancel</button><button className="confirm-reset" onClick={reset} disabled={resetting}>{resetting?<Loader2 className="spin" size={14}/>:<Trash2 size={14}/>}Reset everything</button></div>
+        </div>}
+      </section>
+    </div>
   </DialogShell>
 }
 
@@ -202,7 +233,7 @@ export default function App(){
   const openResult=async(result:SearchResult)=>{setSearch(false);if(result.kind==='conversation'&&result.sessionId)await selectSession(result.sessionId);else if(result.kind==='artifact'){const item=data?.artifacts.find(a=>a.id===result.id);if(item)setArtifact(item);setSurface('memory')}};
   if(loading&&!data)return <div className="app-loading"><Mark/><Loader2 className="spin" size={18}/><span>Opening your studio…</span></div>;
   if(!data)return <div className="app-loading">Could not open the studio.</div>;
-  return <div className="app-shell"><Sidebar data={data} surface={surface} onSurface={setSurface} onProject={selectProject} onNewProject={()=>setDialog('project')}/><div className="workspace-shell"><Topbar data={data} onSearch={()=>setSearch(true)} onSettings={()=>setDialog('settings')} onHelp={()=>setOnboarding(true)}/><AnimatePresence mode="wait"><motion.div key={surface} className="surface-wrap" initial={{opacity:0,y:4}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-3}}>
+  return <div className="app-shell"><Sidebar data={data} surface={surface} onSurface={setSurface} onProject={selectProject} onNewProject={()=>setDialog('project')} onSettings={()=>setDialog('settings')}/><div className="workspace-shell"><Topbar data={data} onSearch={()=>setSearch(true)} onSettings={()=>setDialog('settings')} onHelp={()=>setOnboarding(true)}/><AnimatePresence mode="wait"><motion.div key={surface} className="surface-wrap" initial={{opacity:0,y:4}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-3}}>
     {surface==='studio'&&<StudioView data={data} session={session} thinking={thinking} onSend={send} onCapture={captureSession} onSession={selectSession} onNewSession={()=>setDialog('session')} onImport={()=>setDialog('import')} onSource={()=>setDialog('source')} onArtifact={setArtifact}/>}
     {surface==='memory'&&<MemoryView data={data} onArtifact={setArtifact}/>}
     {surface==='history'&&<HistoryView data={data} onSession={selectSession} onArtifact={setArtifact}/>}

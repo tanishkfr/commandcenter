@@ -44,6 +44,13 @@ function seedState():CreativeMemoryState {
   };
 }
 
+export function createFreshState():CreativeMemoryState {
+  const timestamp=now();
+  const project:StudioProject={ id:'my-first-project', name:'My first project', description:'A fresh space for your next idea.', color:'#796bb4', createdAt:timestamp, updatedAt:timestamp };
+  const session:StudioSession={ id:'session_first', projectId:project.id, title:'First conversation', createdAt:timestamp, updatedAt:timestamp, capturedAt:null, messages:[] };
+  return { version:1, activeProjectId:project.id, projects:[project], sessions:[session], artifacts:[], sources:[], events:[] };
+}
+
 class CreativeMemoryStore {
   private queue:Promise<unknown> = Promise.resolve();
 
@@ -238,6 +245,8 @@ class CreativeMemoryStore {
     for(const source of state.sources){if(projectId&&source.projectId!==projectId)continue;const s=score(source.title+' '+source.note+' '+source.url);if(s)results.push({id:source.id,kind:'source',projectId:source.projectId,title:source.title,snippet:source.note||source.url,meta:source.type,score:s})}
     return results.sort((a,b)=>b.score-a.score).slice(0,30);
   }
+
+  async resetState(){return this.mutate(state=>{const fresh=createFreshState();Object.assign(state,fresh);return fresh})}
 
   async exportState(){return this.read()}
 }

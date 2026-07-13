@@ -84,6 +84,17 @@ export async function disconnectAI(){
   return connectionStatus();
 }
 
+
+export async function resetConnections(){
+  delete process.env.NVIDIA_API_KEY;delete process.env.NVIDIA_MODEL;delete process.env.NVIDIA_BASE_URL;delete process.env.API_KEY;
+  delete process.env.GEMINI_API_KEY;delete process.env.GEMINI_MODEL;
+  await writeValues({
+    NVIDIA_API_KEY:undefined,NVIDIA_MODEL:undefined,NVIDIA_BASE_URL:undefined,API_KEY:undefined,
+    GEMINI_API_KEY:undefined,GEMINI_MODEL:undefined
+  });
+  return connectionStatus();
+}
+
 export async function generateMcpCredential(){
   const token=randomBytes(32).toString('hex');
   process.env.API_KEY=token;
