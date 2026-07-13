@@ -17,8 +17,32 @@ describe('fresh studio state',()=>{
     const state=createFreshState();
     state.artifacts=[{id:'legacy',projectId:state.projects[0].id,sessionId:null,type:'decision',title:'Legacy direction',body:'Keep it quiet',status:'active',tags:[],confidence:.8,sourceMessageIds:[],createdAt:'2025-01-01',updatedAt:'2025-01-01'} as MemoryArtifact];
     const normalized=normalizeCreativeMemoryState(state);
-    expect(normalized.version).toBe(3);
+    expect(normalized.version).toBe(4);
     expect(normalized.artifacts[0]).toMatchObject({reviewStatus:'accepted',origin:'manual',relatedArtifactIds:[],supersedesArtifactIds:[],supersededByArtifactId:null});
+  });
+
+
+  it('replaces the untouched three-project demo with a blank first workspace',()=>{
+    const timestamp='2026-01-01T00:00:00.000Z';
+    const demo={version:3,activeProjectId:'atlas',projects:[
+      {id:'atlas',name:'Atlas',description:'Exploring spatial wayfinding without demanding attention.',color:'#111',createdAt:timestamp,updatedAt:timestamp},
+      {id:'pentimento',name:'Pentimento',description:'A living record of how creative work changes.',color:'#222',createdAt:timestamp,updatedAt:timestamp},
+      {id:'invisible-interfaces',name:'Invisible Interfaces',description:'Designing systems that know when to disappear.',color:'#333',createdAt:timestamp,updatedAt:timestamp}
+    ],sessions:[{id:'session_welcome',projectId:'atlas',title:'Welcome',createdAt:timestamp,updatedAt:timestamp,capturedAt:null,messages:[
+      {id:'msg_welcome_user',role:'user' as const,content:'Demo',createdAt:timestamp,citedArtifactIds:[]},
+      {id:'msg_welcome_studio',role:'assistant' as const,content:'Demo',createdAt:timestamp,citedArtifactIds:[]}
+    ]}],artifacts:[],sources:[],events:[]};
+    const normalized=normalizeCreativeMemoryState(demo);
+    expect(normalized).toMatchObject({version:4,activeProjectId:'my-first-project'});
+    expect(normalized.projects.map(project=>project.name)).toEqual(['My first project']);
+    expect(normalized.sessions[0].messages).toEqual([]);
+  });
+
+  it('gives every migrated project an accessible first conversation',()=>{
+    const state=createFreshState();
+    state.projects.push({id:'orphan',name:'Orphan project',description:'',color:'#333',createdAt:'2026-01-01',updatedAt:'2026-01-01'});
+    const normalized=normalizeCreativeMemoryState(state);
+    expect(normalized.sessions.find(session=>session.projectId==='orphan')).toMatchObject({title:'First conversation',messages:[]});
   });
 
   it('flags a new direction when it overlaps reviewed project memory',()=>{

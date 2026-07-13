@@ -14,7 +14,9 @@ describe('Vercel Blob creative memory storage',()=>{
     blobMocks.put.mockResolvedValue({etag:'created-etag'});
     const {creativeMemoryStore}=await import('./creativeMemory.js');
     const bootstrap=await creativeMemoryStore.bootstrap();
-    expect(bootstrap.project.name).toBe('Atlas');
+    expect(bootstrap.project.name).toBe('My first project');
+    expect(bootstrap.projects).toHaveLength(1);
+    expect(bootstrap.activeSession?.messages).toEqual([]);
     expect(bootstrap.storageMode).toBe('vercel-blob');
     expect(blobMocks.put).toHaveBeenCalledWith('creative-memory/studio.json',expect.any(String),expect.objectContaining({access:'private',allowOverwrite:false}));
   });

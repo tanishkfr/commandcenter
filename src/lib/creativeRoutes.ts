@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { creativeMemoryStore } from './creativeMemory.js';
-import { extractSessionMemory, generateStudioReply } from './creativeAI.js';
+import { creativeMemoryStore, type DeletedProjectSnapshot } from './creativeMemory.js';
+import { extractSessionMemory, generateStudioReply, testNvidiaConnection } from './creativeAI.js';
 import { configureAI, connectionStatus, disconnectAI, generateMcpCredential, resetConnections } from './connectionSettings.js';
 
 export function createCreativeRouter(onChange:(event:string,data:unknown)=>void){
@@ -35,13 +35,29 @@ export function createCreativeRouter(onChange:(event:string,data:unknown)=>void)
 
 
   router.post('/settings/reset',handle(async(req,res)=>{
+    const clearConnections=req.body?.clearConnections!==false&&!process.env.VERCEL;
     await creativeMemoryStore.resetState();
-    const clearConnections=req.body?.clearConnections!==false;
-    const connections=clearConnections?await resetConnections():await connectionStatus();
+    let connections=await connectionStatus();
+    let warning:string|undefined;
+    if(clearConnections){
+      try{connections=await resetConnections()}
+      catch(error){console.error('Project memory reset, but local credentials could not be cleared',error);warning='The workspace was reset, but local connection credentials could not be removed. Delete them from .env before sharing this computer.'}
+    }
     const bootstrap=await creativeMemoryStore.bootstrap();
-    onChange('studio-reset',{clearConnections});
-    res.json({bootstrap,connections});
+    onChange('studio-reset',{clearConnections,warning});
+    res.json({bootstrap,connections,warning});
   }));
+
+  router.post('/settings/diagnostics',handle(async(req,res)=>{
+    const status=await connectionStatus();
+    let storage:{ok:boolean;detail:string};
+    try{await creativeMemoryStore.exportState();storage={ok:true,detail:status.storageMode==='vercel-blob'?'Private Vercel Blob is reachable and readable.':'Local project storage is available.'}}catch(error:any){storage={ok:false,detail:error?.message||'Project storage could not be reached.'}}
+    let ai:{ok:boolean;mode:'nim'|'local';detail:string}={ok:true,mode:status.aiConfigured?'nim':'local',detail:status.aiConfigured?'NVIDIA NIM is configured. Run the live check to verify the key and model.':'Local intelligence is active; no API key is required.'};
+    if(req.body?.testAI&&status.aiConfigured){try{await testNvidiaConnection(process.env.NVIDIA_API_KEY||'',status.aiModel);ai={ok:true,mode:'nim',detail:'NVIDIA NIM responded successfully with '+status.aiModel+'.'}}catch(error:any){ai={ok:false,mode:'nim',detail:'NVIDIA NIM did not respond: '+(error?.message||'check the key and model, then redeploy.')}}}
+    const mcp={ok:status.mcpConfigured,detail:status.mcpConfigured?'An MCP bearer credential is present for '+status.mcpUrl+'.':'No MCP bearer credential is configured. Remainder itself still works.',url:status.mcpUrl};
+    res.json({runtime:status.runtime,storage,ai,mcp,configWritable:status.configWritable});
+  }));
+
 
   router.post('/projects',handle(async(req,res)=>{
     const result=await creativeMemoryStore.createProject(req.body||{});
@@ -52,6 +68,17 @@ export function createCreativeRouter(onChange:(event:string,data:unknown)=>void)
     const project=await creativeMemoryStore.updateProject(req.params.id,req.body||{});
     onChange('project-updated',project);res.json(project);
   }));
+
+  router.delete('/projects/:id',handle(async(req,res)=>{
+    const result=await creativeMemoryStore.deleteProject(req.params.id);
+    onChange('project-deleted',{projectId:req.params.id});res.json(result);
+  }));
+
+  router.post('/projects/restore',handle(async(req,res)=>{
+    const result=await creativeMemoryStore.restoreProject(req.body?.snapshot as DeletedProjectSnapshot);
+    onChange('project-restored',result);res.status(201).json(result);
+  }));
+
 
   router.post('/projects/:id/active',handle(async(req,res)=>{
     await creativeMemoryStore.setActiveProject(req.params.id);res.json({success:true});
@@ -70,10 +97,9 @@ export function createCreativeRouter(onChange:(event:string,data:unknown)=>void)
     const content=String(req.body?.content||'').trim();
     if(!content)throw new Error('Message cannot be empty');
     const session=await creativeMemoryStore.getSession(req.params.id);
-    const user=await creativeMemoryStore.addMessage(session.id,'user',content);
     const context=await creativeMemoryStore.context(session.projectId,session.id);
     const reply=await generateStudioReply(context,content);
-    const assistant=await creativeMemoryStore.addMessage(session.id,'assistant',reply.text,reply.citedArtifactIds);
+    const {user,assistant}=await creativeMemoryStore.addExchange(session.id,content,reply.text,reply.citedArtifactIds);
     onChange('messages-created',{sessionId:session.id,user,assistant});
     res.status(201).json({user,assistant,mode:reply.mode});
   }));

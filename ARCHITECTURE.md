@@ -17,9 +17,9 @@ Conversation
   → conversation, memory, search, history, context rail, export, MCP
 ~~~
 
-## Memory schema, version 3
+## Memory schema, version 4
 
-Every artifact contains review status, origin, confidence, source message IDs, related IDs, supersedesArtifactIds, and supersededByArtifactId. Only accepted, active memory enters AI context.
+A new workspace begins with one editable project and one usable conversation; the old three-project demonstration migrates away. Every artifact contains review status, origin, confidence, source message IDs, related IDs, supersedesArtifactIds, and supersededByArtifactId. Only accepted, active memory enters AI context.
 
 ## Invariants
 
@@ -31,8 +31,11 @@ Every artifact contains review status, origin, confidence, source message IDs, r
 6. Every mutation writes history.
 7. Local writes are atomic; Blob writes use conditional replacement and retry.
 8. Export contains the complete portable state.
-9. AI failure falls back locally before a conversation is lost.
-10. The project—not the model—is the durable object.
+9. A completed user/assistant exchange persists in one mutation; a failed exchange leaves the browser draft intact.
+10. AI failure falls back locally before a conversation is lost.
+11. Project delete has a complete snapshot for Undo, and the last project cannot be deleted.
+12. Reset always produces one valid project and one valid conversation.
+13. The project—not the model—is the durable object.
 
 ## Storage and trust
 

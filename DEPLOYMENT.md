@@ -26,7 +26,11 @@ Open `/api/health` on the deployed URL. A healthy deployment returns JSON simila
 {"ok":true,"runtime":"vercel","storage":"vercel-blob"}
 ```
 
-Then open the root URL. If Blob is not connected, Remainder shows a repair checklist instead of a blank error screen.
+Then open the root URL. If Blob is not connected, Remainder shows a repair checklist instead of a blank error screen. Open **Settings -> Connection health** and choose **Run check** to verify Blob access, make a live NIM request, and confirm the MCP bearer credential is present.
+
+Use the setup guide to copy the MCP configuration. The client must use `/api/mcp` and send `Authorization: Bearer YOUR_API_KEY`; modern clients negotiate the required JSON and event-stream response types automatically.
+
+On Vercel, **Begin again** resets Blob project memory but deliberately leaves environment variables intact. Change or remove those variables in Vercel Project Settings, then redeploy.
 
 ## Local development
 
