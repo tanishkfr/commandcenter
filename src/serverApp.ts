@@ -11,6 +11,13 @@ const mcpTransports = new Map<string, SSEServerTransport>();
 const eventClients = new Set<express.Response>();
 
 app.disable('x-powered-by');
+app.use((_req,res,next)=>{
+  res.setHeader('X-Content-Type-Options','nosniff');
+  res.setHeader('X-Frame-Options','DENY');
+  res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');
+  next();
+});
 app.use(express.json({ limit: '2mb' }));
 
 function verifyAuth(req:express.Request,res:express.Response,next:express.NextFunction){

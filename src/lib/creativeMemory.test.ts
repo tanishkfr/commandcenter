@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyArtifactSupersession, createFreshState, findRelatedArtifactIds, normalizeCreativeMemoryState, releaseArtifactSupersession, type MemoryArtifact } from './creativeMemory';
+import { applyArtifactSupersession, createFreshState, findRelatedArtifactIds, normalizeCreativeMemoryState, releaseArtifactSupersession, requireProjectColor, requireSourceUrl, type MemoryArtifact } from './creativeMemory';
 
 describe('fresh studio state',()=>{
   it('starts with one blank project and no retained creative history',()=>{
@@ -43,6 +43,24 @@ describe('fresh studio state',()=>{
     state.projects.push({id:'orphan',name:'Orphan project',description:'',color:'#333',createdAt:'2026-01-01',updatedAt:'2026-01-01'});
     const normalized=normalizeCreativeMemoryState(state);
     expect(normalized.sessions.find(session=>session.projectId==='orphan')).toMatchObject({title:'First conversation',messages:[]});
+  });
+
+  it('rejects unsafe source addresses and malformed project colors',()=>{
+    expect(requireSourceUrl('https://example.com/reference')).toBe('https://example.com/reference');
+    expect(()=>requireSourceUrl('javascript:alert(1)')).toThrow(/http:\/\/ or https:\/\//);
+    expect(requireProjectColor('#9E4935')).toBe('#9E4935');
+    expect(()=>requireProjectColor('red')).toThrow(/six-digit hex color/);
+  });
+
+  it('repairs unsafe legacy presentation data while preserving the workspace',()=>{
+    const state=createFreshState();
+    state.projects[0].name='';state.projects[0].color='not-a-color';
+    state.sources.push({id:'unsafe',projectId:state.projects[0].id,type:'script' as any,title:'Unsafe source',url:'javascript:alert(1)',note:'',createdAt:'2026-01-01'});
+    state.artifacts.push({id:'damaged',projectId:state.projects[0].id,sessionId:null,type:'unknown' as any,title:'',body:'Context',status:'unknown' as any,reviewStatus:'unknown' as any,origin:'unknown' as any,relatedArtifactIds:[],supersedesArtifactIds:[],supersededByArtifactId:null,tags:['','recovered','recovered'],confidence:4,sourceMessageIds:[],createdAt:'2026-01-01',updatedAt:'2026-01-01'});
+    const normalized=normalizeCreativeMemoryState(state);
+    expect(normalized.projects[0]).toMatchObject({name:'Untitled project',color:'#9E4935'});
+    expect(normalized.sources[0]).toMatchObject({type:'link',url:''});
+    expect(normalized.artifacts[0]).toMatchObject({type:'idea',title:'Untitled memory',status:'active',reviewStatus:'accepted',origin:'manual',tags:['recovered'],confidence:1});
   });
 
   it('flags a new direction when it overlaps reviewed project memory',()=>{

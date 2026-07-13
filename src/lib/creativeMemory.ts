@@ -35,6 +35,37 @@ const waitForConflict=(attempt:number)=>new Promise<void>(resolve=>setTimeout(re
 const now = () => new Date().toISOString();
 const daysAgo = (days:number) => new Date(Date.now() - days * 86400000).toISOString();
 const makeId = (prefix:string) => prefix + '_' + randomUUID().replace(/-/g, '').slice(0, 12);
+const DEFAULT_PROJECT_COLOR='#9E4935';
+const ARTIFACT_TYPES=new Set<ArtifactType>(['decision','principle','question','idea','experiment','reference','risk','action','abandoned']);
+const ARTIFACT_STATUSES=new Set<ArtifactStatus>(['active','resolved','archived']);
+const SOURCE_TYPES=new Set<SourceType>(['link','figma','github','note','document']);
+const ARTIFACT_REVIEW_STATUSES=new Set<ArtifactReviewStatus>(['pending','accepted','rejected']);
+const ARTIFACT_ORIGINS=new Set<ArtifactOrigin>(['ai','local','manual']);
+
+export function requireProjectColor(value:string|undefined,fallback=DEFAULT_PROJECT_COLOR){
+  if(value===undefined||value==='')return fallback;
+  const clean=String(value).trim();
+  if(!/^#[0-9a-f]{6}$/i.test(clean))throw new Error('Use a six-digit hex color for the project.');
+  return clean;
+}
+
+export function requireSourceUrl(value:string|undefined){
+  const clean=String(value||'').trim();
+  if(!clean)return '';
+  try{
+    const parsed=new URL(clean);
+    if(parsed.protocol!=='http:'&&parsed.protocol!=='https:')throw new Error('Unsupported protocol');
+    return parsed.toString();
+  }catch{throw new Error('Use a complete source address beginning with http:// or https://.')}
+}
+
+const storedProjectColor=(value:unknown)=>typeof value==='string'&&/^#[0-9a-f]{6}$/i.test(value)?value:DEFAULT_PROJECT_COLOR;
+const storedSourceUrl=(value:unknown)=>{try{return requireSourceUrl(typeof value==='string'?value:undefined)}catch{return ''}};
+const sanitizeRestoredArtifact=(input:MemoryArtifact):MemoryArtifact=>{
+  if(!ARTIFACT_TYPES.has(input.type)||!ARTIFACT_STATUSES.has(input.status)||!ARTIFACT_REVIEW_STATUSES.has(input.reviewStatus)||!ARTIFACT_ORIGINS.has(input.origin))throw new Error('The removed memory contains invalid project data.');
+  const title=String(input.title||'').trim();if(!title)throw new Error('The removed memory needs a title before it can be restored.');
+  return {...input,title,body:String(input.body||'').trim(),tags:Array.from(new Set((Array.isArray(input.tags)?input.tags:[]).map(tag=>String(tag).trim()).filter(Boolean))).slice(0,50),relatedArtifactIds:(Array.isArray(input.relatedArtifactIds)?input.relatedArtifactIds:[]).filter(id=>typeof id==='string'),supersedesArtifactIds:(Array.isArray(input.supersedesArtifactIds)?input.supersedesArtifactIds:[]).filter(id=>typeof id==='string'),supersededByArtifactId:typeof input.supersededByArtifactId==='string'?input.supersededByArtifactId:null,sourceMessageIds:(Array.isArray(input.sourceMessageIds)?input.sourceMessageIds:[]).filter(id=>typeof id==='string'),confidence:Number.isFinite(input.confidence)?Math.max(0,Math.min(1,input.confidence)):.5};
+};
 
 export function normalizeCreativeMemoryState(state:CreativeMemoryState):CreativeMemoryState {
   if(!state||!Array.isArray(state.projects)||!state.projects.length)return createFreshState();
@@ -42,18 +73,25 @@ export function normalizeCreativeMemoryState(state:CreativeMemoryState):Creative
   const untouchedDemo=state.version<=3&&state.projects.length===3&&state.projects.every(project=>{const expected=legacyProjects[project.id as keyof typeof legacyProjects];return expected&&project.name===expected[0]&&project.description===expected[1]})&&state.sessions?.length===1&&state.sessions[0]?.id==='session_welcome'&&state.sessions[0].messages?.length===2&&state.sessions[0].messages[0]?.id==='msg_welcome_user'&&state.sessions[0].messages[1]?.id==='msg_welcome_studio'&&!(state.artifacts||[]).length&&!(state.sources||[]).length;
   if(untouchedDemo)return createFreshState();
   state.version=4;
-  state.projects=state.projects||[];
-  state.sessions=state.sessions||[];
+  state.projects=(state.projects||[]).map(project=>({...project,name:String(project.name||'Untitled project').trim()||'Untitled project',description:String(project.description||'').trim(),color:storedProjectColor(project.color)}));
+  state.sessions=(state.sessions||[]).map(session=>({...session,title:String(session.title||'Conversation').trim()||'Conversation',messages:(Array.isArray(session.messages)?session.messages:[]).filter(message=>message&&(message.role==='user'||message.role==='assistant')).map(message=>({...message,content:String(message.content||''),citedArtifactIds:(Array.isArray(message.citedArtifactIds)?message.citedArtifactIds:[]).filter(id=>typeof id==='string')}))}));
   state.artifacts=(state.artifacts||[]).map(artifact=>({
     ...artifact,
-    reviewStatus:artifact.reviewStatus||'accepted',
-    origin:artifact.origin||'manual',
-    relatedArtifactIds:artifact.relatedArtifactIds||[],
-    supersedesArtifactIds:artifact.supersedesArtifactIds||[],
-    supersededByArtifactId:artifact.supersededByArtifactId||null
+    type:ARTIFACT_TYPES.has(artifact.type)?artifact.type:'idea',
+    title:String(artifact.title||'Untitled memory').trim()||'Untitled memory',
+    body:String(artifact.body||'').trim(),
+    status:ARTIFACT_STATUSES.has(artifact.status)?artifact.status:'active',
+    reviewStatus:ARTIFACT_REVIEW_STATUSES.has(artifact.reviewStatus)?artifact.reviewStatus:'accepted',
+    origin:ARTIFACT_ORIGINS.has(artifact.origin)?artifact.origin:'manual',
+    relatedArtifactIds:(Array.isArray(artifact.relatedArtifactIds)?artifact.relatedArtifactIds:[]).filter(id=>typeof id==='string'),
+    supersedesArtifactIds:(Array.isArray(artifact.supersedesArtifactIds)?artifact.supersedesArtifactIds:[]).filter(id=>typeof id==='string'),
+    supersededByArtifactId:typeof artifact.supersededByArtifactId==='string'?artifact.supersededByArtifactId:null,
+    tags:Array.from(new Set((Array.isArray(artifact.tags)?artifact.tags:[]).map(tag=>String(tag).trim()).filter(Boolean))).slice(0,50),
+    confidence:Number.isFinite(artifact.confidence)?Math.max(0,Math.min(1,artifact.confidence)):.5,
+    sourceMessageIds:(Array.isArray(artifact.sourceMessageIds)?artifact.sourceMessageIds:[]).filter(id=>typeof id==='string')
   }));
-  state.sources=state.sources||[];
-  state.events=state.events||[];
+  state.sources=(state.sources||[]).map(source=>({...source,type:SOURCE_TYPES.has(source.type)?source.type:'link',title:String(source.title||'Untitled source').trim()||'Untitled source',url:storedSourceUrl(source.url),note:String(source.note||'').trim()}));
+  state.events=(state.events||[]).map(event=>({...event,title:String(event.title||'Project update').trim()||'Project update',detail:String(event.detail||'').trim()}));
   for(const project of state.projects){
     if(!state.sessions.some(session=>session.projectId===project.id)){
       const timestamp=project.updatedAt||project.createdAt||now();
@@ -109,7 +147,7 @@ export function applyArtifactSupersession(artifact:MemoryArtifact,artifacts:Memo
 
 export function createFreshState():CreativeMemoryState {
   const timestamp=now();
-  const project:StudioProject={ id:'my-first-project', name:'My first project', description:'A fresh space for your next idea.', color:'#A44932', createdAt:timestamp, updatedAt:timestamp };
+  const project:StudioProject={ id:'my-first-project', name:'My first project', description:'A fresh space for your next idea.', color:DEFAULT_PROJECT_COLOR, createdAt:timestamp, updatedAt:timestamp };
   const session:StudioSession={ id:'session_first', projectId:project.id, title:'First conversation', createdAt:timestamp, updatedAt:timestamp, capturedAt:null, messages:[] };
   return { version:4, activeProjectId:project.id, projects:[project], sessions:[session], artifacts:[], sources:[], events:[] };
 }
@@ -197,9 +235,10 @@ class CreativeMemoryStore {
 
   async createProject(input:{name:string;description?:string;color?:string}) {
     return this.mutate(state=>{
-      if (!input.name.trim()) throw new Error('Project name is required');
+      const name=String(input.name||'').trim();
+      if(!name)throw new Error('Project name is required');
       const timestamp=now();
-      const project:StudioProject={ id:makeId('project'), name:input.name.trim(), description:input.description?.trim()||'', color:input.color||'#A44932', createdAt:timestamp, updatedAt:timestamp };
+      const project:StudioProject={ id:makeId('project'), name, description:String(input.description||'').trim(), color:requireProjectColor(input.color), createdAt:timestamp, updatedAt:timestamp };
       const session:StudioSession={ id:makeId('session'), projectId:project.id, title:'First conversation', createdAt:timestamp, updatedAt:timestamp, capturedAt:null, messages:[] };
       state.projects.push(project); state.sessions.push(session); state.activeProjectId=project.id;
       this.addEvent(state, project.id, 'project', 'Project created', 'A new creative memory began.', session.id);
@@ -211,9 +250,12 @@ class CreativeMemoryStore {
     return this.mutate(state=>{
       const project=state.projects.find(item=>item.id===projectId);
       if (!project) throw new Error('Project not found');
-      const nextName=updates.name===undefined?project.name:updates.name.trim();
+      const nextName=updates.name===undefined?project.name:String(updates.name||'').trim();
       if(!nextName)throw new Error('Project name is required');
-      Object.assign(project,{...updates,name:nextName,description:updates.description===undefined?project.description:updates.description.trim(),updatedAt:now()});
+      project.name=nextName;
+      if(updates.description!==undefined)project.description=String(updates.description||'').trim();
+      if(updates.color!==undefined)project.color=requireProjectColor(updates.color,project.color);
+      project.updatedAt=now();
       return project;
     });
   }
@@ -242,27 +284,27 @@ class CreativeMemoryStore {
 
   async restoreProject(snapshot:DeletedProjectSnapshot) {
     return this.mutate(state=>{
-      if(!snapshot?.project?.id||!snapshot.project.name?.trim())throw new Error('The removed project could not be restored');
+      const name=String(snapshot?.project?.name||'').trim();
+      if(typeof snapshot?.project?.id!=='string'||!snapshot.project.id||!name)throw new Error('The removed project could not be restored');
       const projectId=snapshot.project.id;
       if(state.projects.some(item=>item.id===projectId))throw new Error('This project is already restored');
       const timestamp=now();
-      const project={...snapshot.project,name:snapshot.project.name.trim(),updatedAt:timestamp};
-      const sessions=(snapshot.sessions||[]).filter(item=>item?.projectId===projectId&&!state.sessions.some(existing=>existing.id===item.id));
+      const project={...snapshot.project,name,description:String(snapshot.project.description||'').trim(),color:requireProjectColor(snapshot.project.color),updatedAt:timestamp};
+      const sessions=(Array.isArray(snapshot.sessions)?snapshot.sessions:[]).filter(item=>item?.projectId===projectId&&!state.sessions.some(existing=>existing.id===item.id)).map(item=>({...item,title:String(item.title||'').trim()||'Conversation',messages:(Array.isArray(item.messages)?item.messages:[]).filter(message=>message&&(message.role==='user'||message.role==='assistant')).map(message=>({...message,content:String(message.content||''),citedArtifactIds:(Array.isArray(message.citedArtifactIds)?message.citedArtifactIds:[]).filter(id=>typeof id==='string')}))}));
       const restoredSessions=sessions.length?sessions:[{id:makeId('session'),projectId,title:'First conversation',createdAt:timestamp,updatedAt:timestamp,capturedAt:null,messages:[]}];
-      const artifacts=(snapshot.artifacts||[]).filter(item=>item?.projectId===projectId&&!state.artifacts.some(existing=>existing.id===item.id));
-      const sources=(snapshot.sources||[]).filter(item=>item?.projectId===projectId&&!state.sources.some(existing=>existing.id===item.id));
-      const events=(snapshot.events||[]).filter(item=>item?.projectId===projectId&&!state.events.some(existing=>existing.id===item.id));
+      const artifacts=(Array.isArray(snapshot.artifacts)?snapshot.artifacts:[]).filter(item=>item?.projectId===projectId&&!state.artifacts.some(existing=>existing.id===item.id)).map(sanitizeRestoredArtifact);
+      const sources=(Array.isArray(snapshot.sources)?snapshot.sources:[]).filter(item=>item?.projectId===projectId&&!state.sources.some(existing=>existing.id===item.id)).map(item=>({...item,type:SOURCE_TYPES.has(item.type)?item.type:'link',title:String(item.title||'').trim()||'Untitled source',url:requireSourceUrl(item.url),note:String(item.note||'').trim()}));
+      const events=(Array.isArray(snapshot.events)?snapshot.events:[]).filter(item=>item?.projectId===projectId&&!state.events.some(existing=>existing.id===item.id)).map(item=>({...item,title:String(item.title||'').trim()||'Project restored',detail:String(item.detail||'').trim()}));
       state.projects.push(project);state.sessions.push(...restoredSessions);state.artifacts.push(...artifacts);state.sources.push(...sources);state.events.push(...events);state.activeProjectId=projectId;
       const activeSession=[...restoredSessions].sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt))[0]||null;
       return{project,activeSession};
     });
   }
-
   async createSession(projectId:string,title='New conversation') {
     return this.mutate(state=>{
       if (!state.projects.some(item=>item.id===projectId)) throw new Error('Project not found');
       const timestamp=now();
-      const session:StudioSession={ id:makeId('session'), projectId, title:title.trim()||'New conversation', createdAt:timestamp, updatedAt:timestamp, capturedAt:null, messages:[] };
+      const session:StudioSession={ id:makeId('session'), projectId, title:String(title||'').trim()||'New conversation', createdAt:timestamp, updatedAt:timestamp, capturedAt:null, messages:[] };
       state.sessions.push(session);
       this.addEvent(state,projectId,'conversation',session.title,'A new conversation started.',session.id);
       return session;
@@ -349,7 +391,12 @@ class CreativeMemoryStore {
         if(successor)successor.supersedesArtifactIds=successor.supersedesArtifactIds.filter(id=>id!==artifact.id);
         artifact.supersededByArtifactId=null;
       }
-      Object.assign(artifact,updates,{updatedAt:timestamp});
+      if(updates.title!==undefined){const title=String(updates.title||'').trim();if(!title)throw new Error('Memory title is required');artifact.title=title}
+      if(updates.body!==undefined)artifact.body=String(updates.body||'').trim();
+      if(updates.type!==undefined){if(!ARTIFACT_TYPES.has(updates.type))throw new Error('Choose a valid memory type.');artifact.type=updates.type}
+      if(updates.status!==undefined){if(!ARTIFACT_STATUSES.has(updates.status))throw new Error('Choose a valid memory status.');artifact.status=updates.status}
+      if(updates.tags!==undefined)artifact.tags=Array.from(new Set((Array.isArray(updates.tags)?updates.tags:[]).map(tag=>String(tag).trim()).filter(Boolean))).slice(0,50);
+      artifact.updatedAt=timestamp;
       this.addEvent(state,artifact.projectId,'memory-edited',artifact.title,'Project memory was edited.',artifact.sessionId||undefined,artifact.id);
       return artifact;
     });
@@ -392,7 +439,7 @@ class CreativeMemoryStore {
       if(state.artifacts.some(item=>item.id===input.id))throw new Error('Memory is already restored');
       if(!state.projects.some(item=>item.id===input.projectId))throw new Error('The original project no longer exists');
       const timestamp=now();
-      const restored={...input,supersedesArtifactIds:input.supersedesArtifactIds||[],supersededByArtifactId:input.supersededByArtifactId||null,updatedAt:timestamp};
+            const restored={...sanitizeRestoredArtifact(input),updatedAt:timestamp};
       state.artifacts.push(restored);
       for(const earlierId of restored.supersedesArtifactIds){const earlier=state.artifacts.find(item=>item.id===earlierId);if(earlier){earlier.status='resolved';earlier.supersededByArtifactId=restored.id;earlier.updatedAt=timestamp}}
       this.addEvent(state,restored.projectId,'memory-restored',restored.title,'A removed memory was restored.',restored.sessionId||undefined,restored.id);
@@ -403,8 +450,10 @@ class CreativeMemoryStore {
   async addSource(projectId:string,input:{type?:SourceType;title:string;url?:string;note?:string}) {
     return this.mutate(state=>{
       if (!state.projects.some(item=>item.id===projectId)) throw new Error('Project not found');
-      if (!input.title.trim()) throw new Error('Source title is required');
-      const source:StudioSource={id:makeId('source'),projectId,type:input.type||'link',title:input.title.trim(),url:input.url?.trim()||'',note:input.note?.trim()||'',createdAt:now()};
+      const title=String(input.title||'').trim();
+      if(!title)throw new Error('Source title is required');
+      const type=input.type||'link';if(!SOURCE_TYPES.has(type))throw new Error('Choose a valid source type.');
+      const source:StudioSource={id:makeId('source'),projectId,type,title,url:requireSourceUrl(input.url),note:String(input.note||'').trim(),createdAt:now()};
       state.sources.push(source); this.addEvent(state,projectId,'reference',source.title,source.note||source.url||'A reference was added.');
       return source;
     });

@@ -54,6 +54,10 @@ describe('visible interaction integrity',()=>{
     expect(app).toContain("const ACTIVE_PROJECT_KEY='remainder-active-project-v1'");
     expect(app).toContain('const storageIssue=/cloud|blob|storage/i.test(raw)');
     expect(app).toContain('Connect Vercel Blob, redeploy, then try again.');
+    expect(app).toContain('href="#main-content"');
+    expect(app).toContain('Export workspace backup');
+    expect(app).toContain('aria-busy={loading}');
+    expect(app).toContain('aria-label="Remainder is responding"');
   });
 
   it('labels icon-only controls and contains destructive-action recovery',()=>{
@@ -83,6 +87,9 @@ describe('visible interaction integrity',()=>{
     expect(onboarding).toContain("http://localhost:3000/api/mcp'");
     expect(onboarding).toContain("aria-current={index===step?'step':undefined}");
     expect(onboarding).toContain('remainder-onboarding-v2');
+    expect(app).toContain("document.querySelector('[aria-modal=\"true\"]')");
+    expect(app).toContain("matchMedia?.('(prefers-reduced-motion: reduce)')");
+    expect(app).toContain('if(previous?.isConnected)previous.focus()');
   });
 
   it('keeps every visible button connected to an action',()=>{
@@ -98,6 +105,9 @@ describe('visible interaction integrity',()=>{
     expect(css).toContain('.search-button>svg{display:block}');
     expect(css).toContain('.search-button>span,.search-button>kbd{display:none}');
     expect(css).not.toContain('@import url(');
+    expect(css.lastIndexOf('.session-switch{display:block')).toBeGreaterThan(css.lastIndexOf('.session-switch{display:none'));
+    expect(css).toContain('@media(pointer:coarse)');
+    expect(css).toContain('.skip-link:focus{transform:translateY(0)}');
     expect(document).toContain('rel="preconnect" href="https://fonts.gstatic.com"');
     const paper=declaredColor('paper');
     for(const token of ['ink','muted','faint','accent'])expect(contrastRatio(declaredColor(token),paper)).toBeGreaterThanOrEqual(4.5);
