@@ -14,6 +14,8 @@ describe('visible interaction integrity',()=>{
     expect(app).toContain('captureDisabled={!session||!session.messages.length}');
     expect(app).toContain('Your draft is still in the composer.');
     expect(app).toContain('onSend:(text:string)=>Promise<boolean>');
+    expect(app).not.toContain('studioApi.setActiveProject');
+    expect(app).toContain("const ACTIVE_PROJECT_KEY='remainder-active-project-v1'");
   });
 
   it('labels icon-only controls and contains destructive-action recovery',()=>{

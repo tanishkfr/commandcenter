@@ -6,7 +6,7 @@ import { configureAI, connectionStatus, disconnectAI, generateMcpCredential, res
 export function createCreativeRouter(onChange:(event:string,data:unknown)=>void){
   const router=Router();
   const handle=(fn:(req:any,res:any)=>Promise<void>)=>async(req:any,res:any)=>{
-    try{await fn(req,res)}catch(error:any){console.error(error);res.status(400).json({error:error?.message||'Request failed'})}
+    try{await fn(req,res)}catch(error:any){const raw=error?.message||'Request failed';const message=/etag mismatch|precondition/i.test(raw)?'Project memory changed while saving. Please try again.':raw;console.error(error);res.status(400).json({error:message})}
   };
 
   router.get('/bootstrap',handle(async(req,res)=>{
@@ -79,7 +79,7 @@ export function createCreativeRouter(onChange:(event:string,data:unknown)=>void)
     onChange('project-restored',result);res.status(201).json(result);
   }));
 
-
+  // Read-only compatibility for browser tabs opened before the navigation-write removal.
   router.post('/projects/:id/active',handle(async(req,res)=>{
     await creativeMemoryStore.setActiveProject(req.params.id);res.json({success:true});
   }));

@@ -24,14 +24,13 @@ Secrets are never returned after storage. Local reset can preserve or remove cre
 - PATCH /api/studio/projects/:id
 - DELETE /api/studio/projects/:id
 - POST /api/studio/projects/restore
-- POST /api/studio/projects/:id/active
 - POST /api/studio/sessions
 - GET /api/studio/sessions/:id
 - POST /api/studio/sessions/:id/messages
 - POST /api/studio/sessions/:id/capture
 - POST /api/studio/import
 
-A message endpoint first generates the response, then persists the user and assistant messages as one atomic exchange. Capture creates pending candidates. Pending memory is excluded from model context.
+Project selection is browser-local and read-only; navigation never rewrites shared Blob memory. A message endpoint first generates the response, then persists the user and assistant messages as one atomic exchange. Capture creates pending candidates. Pending memory is excluded from model context.
 
 ## Memory lifecycle
 

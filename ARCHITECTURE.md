@@ -29,13 +29,14 @@ A new workspace begins with one editable project and one usable conversation; th
 4. Superseded memory is resolved, never deleted.
 5. Undo, successor deletion, or review release restores earlier direction.
 6. Every mutation writes history.
-7. Local writes are atomic; Blob writes use conditional replacement and retry.
+7. Local writes are atomic; Blob writes use conditional replacement, bounded backoff, and retry.
 8. Export contains the complete portable state.
 9. A completed user/assistant exchange persists in one mutation; a failed exchange leaves the browser draft intact.
 10. AI failure falls back locally before a conversation is lost.
 11. Project delete has a complete snapshot for Undo, and the last project cannot be deleted.
 12. Reset always produces one valid project and one valid conversation.
-13. The project—not the model—is the durable object.
+13. Project navigation is browser-local and never creates a Blob write.
+14. The project—not the model—is the durable object.
 
 ## Storage and trust
 
