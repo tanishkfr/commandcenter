@@ -6,7 +6,7 @@ import { extractSessionMemory } from './creativeAI.js';
 const textResult=(value:unknown)=>({content:[{type:'text' as const,text:JSON.stringify(value,null,2)}]});
 
 export function createMcpServer(){
-  const server=new McpServer({name:'Creative Memory Studio',version:'2.1.0'});
+  const server=new McpServer({name:'Remainder',version:'2.1.0'});
 
   server.tool('listCreativeProjects','List personal creative-memory projects and their active conversation counts',{},async()=>{
     const data=await creativeMemoryStore.exportState();

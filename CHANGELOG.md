@@ -3,7 +3,7 @@
 ## 1. Context Manager (Context Awareness)
 - Implemented `contextManager.ts` on the backend to track `currentWorkspace`, `currentProject`, `currentCategory`, `lastReferencedTodo`, and `lastReferencedInboxItem`.
 - Provided `GET /api/context` and `PATCH /api/context` for real-time syncing between UI and backend.
-- Command Center now maintains context as users interact with the UI (e.g., hovering over a project automatically sets it as the active context).
+- Remainder now maintains context as users interact with the UI (e.g., hovering over a project automatically sets it as the active context).
 - Added `setCurrentProject` tool to MCP server, allowing external AI integrations to programmatically control the active context.
 
 ## 2. Command Resolution Improvements

@@ -1,6 +1,6 @@
-# Creative Memory MCP Server
+# Remainder MCP Server
 
-The MCP server lets compatible AI clients work directly with the projects and memory in your local Creative Memory Studio.
+The MCP server lets compatible AI clients work directly with the projects and memory in your local Remainder.
 
 ## Recommended setup
 
@@ -10,7 +10,7 @@ The MCP server lets compatible AI clients work directly with the projects and me
 4. Continue to **MCP server**.
 5. Generate a personal credential.
 6. Copy the displayed JSON into your MCP-compatible client.
-7. Keep Creative Memory Studio running whenever the client needs access.
+7. Keep Remainder running whenever the client needs access.
 
 The generated configuration follows this shape:
 

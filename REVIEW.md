@@ -1,7 +1,7 @@
-# Command Center Engineering Review
+# Remainder Engineering Review
 
 ## Executive Summary
-This review evaluates the Command Center application from the perspective of a senior software architect. The application serves as an AI-native headless tool and a React-based UI workspace. While the current implementation works, the reliance on synchronous file I/O, rigid natural language parsing, and naive event streams present severe risks for scalability, reliability, and security in a production environment.
+This review evaluates the Remainder application from the perspective of a senior software architect. The application serves as an AI-native headless tool and a React-based UI workspace. While the current implementation works, the reliance on synchronous file I/O, rigid natural language parsing, and naive event streams present severe risks for scalability, reliability, and security in a production environment.
 
 ## Critical Issues
 

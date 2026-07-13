@@ -46,7 +46,7 @@ export async function connectionStatus():Promise<ConnectionStatus>{
   const apiKey=process.env.NVIDIA_API_KEY||await envValue('NVIDIA_API_KEY');
   const model=process.env.NVIDIA_MODEL||await envValue('NVIDIA_MODEL')||DEFAULT_NIM_MODEL;
   const mcpToken=process.env.API_KEY||await envValue('API_KEY');const storageMode=creativeStorageMode();
-  return{aiConfigured:meaningful(apiKey,''),aiModel:model,aiProvider:'NVIDIA NIM',mcpConfigured:meaningful(mcpToken,'change-me'),mcpUrl:publicBaseUrl()+'/api/mcp',mcpTokenPreview:meaningful(mcpToken,'change-me')?'••••'+String(mcpToken).slice(-4):'',dataFile:storageMode==='vercel-blob'?'Private Vercel Blob · creative-memory/studio.json':path.join(process.cwd(),'.memory','studio.json'),runtime:isVercel()?'vercel':'local',configWritable:!isVercel(),storageMode};
+  return{aiConfigured:meaningful(apiKey,''),aiModel:model,aiProvider:'NVIDIA NIM',mcpConfigured:meaningful(mcpToken,'change-me'),mcpUrl:publicBaseUrl()+'/api/mcp',mcpTokenPreview:meaningful(mcpToken,'change-me')?'••••'+String(mcpToken).slice(-4):'',dataFile:storageMode==='vercel-blob'?'Private Vercel Blob · project memory':path.join(process.cwd(),'.memory','studio.json'),runtime:isVercel()?'vercel':'local',configWritable:!isVercel(),storageMode};
 }
 
 export async function configureAI(apiKey:string,model:string){
