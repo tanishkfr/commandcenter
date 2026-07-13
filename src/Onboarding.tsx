@@ -63,7 +63,7 @@ export default function Onboarding({data,onClose,onConfigured}:Props){
     <section className="onboarding-shell">
       <aside className="onboarding-rail">
         <div className="onboarding-brand"><div className="mark"><span/><span/><span/></div><div><strong>Creative Memory</strong><small>Personal studio setup</small></div></div>
-        <nav>{steps.map((item,index)=>{const Icon=item.icon;return <button key={item.label} className={index===step?'active':index<step?'complete':''} onClick={()=>index<=step&&setStep(index)}><span>{index<step?<Check size={12}/>:<Icon size={13}/>}</span><em>{item.label}</em></button>})}</nav>
+        <nav>{steps.map((item,index)=>{const Icon=item.icon;return <button key={item.label} className={index===step?'active':index<step?'complete':''} onClick={()=>setStep(index)} disabled={index>step} aria-current={index===step?'step':undefined}><span>{index<step?<Check size={12}/>:<Icon size={13}/>}</span><em>{item.label}</em></button>})}</nav>
         <div className="onboarding-privacy"><ShieldCheck size={14}/><p><strong>Local by default</strong>Your projects, memory, keys, and MCP token remain on this machine.</p></div>
       </aside>
 
