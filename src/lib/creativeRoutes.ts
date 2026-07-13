@@ -95,7 +95,7 @@ export function createCreativeRouter(onChange:(event:string,data:unknown)=>void)
 
   router.post('/artifacts/:id/review',handle(async(req,res)=>{
     const action=req.body?.action;
-    if(action!=='accept'&&action!=='reject')throw new Error('Review action must be accept or reject');
+    if(action!=='accept'&&action!=='reject'&&action!=='pending')throw new Error('Review action must be accept, reject, or pending');
     const artifact=await creativeMemoryStore.reviewArtifact(req.params.id,action);
     onChange('artifact-reviewed',artifact);res.json(artifact);
   }));
@@ -103,6 +103,13 @@ export function createCreativeRouter(onChange:(event:string,data:unknown)=>void)
   router.delete('/artifacts/:id',handle(async(req,res)=>{
     const artifact=await creativeMemoryStore.deleteArtifact(req.params.id);
     onChange('artifact-deleted',artifact);res.json({success:true,artifact});
+  }));
+
+  router.post('/artifacts/restore',handle(async(req,res)=>{
+    const artifact=req.body?.artifact;
+    if(!artifact?.id||!artifact?.projectId||!artifact?.title)throw new Error('The removed memory could not be restored');
+    const restored=await creativeMemoryStore.restoreArtifact(artifact);
+    onChange('artifact-restored',restored);res.status(201).json(restored);
   }));
 
   router.post('/sources',handle(async(req,res)=>{

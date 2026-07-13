@@ -17,7 +17,8 @@ export interface StudioSource { id:string; projectId:string; type:SourceType; ti
 export interface TimelineEvent { id:string; projectId:string; type:string; title:string; detail:string; sessionId:string|null; artifactId:string|null; createdAt:string }
 export interface CreativeMemoryState { version:number; activeProjectId:string; projects:StudioProject[]; sessions:StudioSession[]; artifacts:MemoryArtifact[]; sources:StudioSource[]; events:TimelineEvent[] }
 export interface ExtractedArtifact { type:ArtifactType; title:string; body?:string; confidence?:number; sourceMessageIds?:string[]; tags?:string[] }
-export interface SearchResult { id:string; kind:'artifact'|'conversation'|'source'; projectId:string; sessionId?:string; title:string; snippet:string; meta:string; score:number }
+export type SearchResultKind='project'|'artifact'|'conversation'|'source'|'history';
+export interface SearchResult { id:string; kind:SearchResultKind; projectId:string; projectName:string; sessionId?:string; artifactId?:string; artifactType?:ArtifactType; url?:string; title:string; snippet:string; meta:string; score:number }
 
 const DATA_DIR = path.join(process.cwd(), '.memory');
 const DATA_FILE = path.join(DATA_DIR, 'studio.json');
@@ -254,15 +255,15 @@ class CreativeMemoryStore {
     });
   }
 
-  async reviewArtifact(artifactId:string,action:'accept'|'reject') {
+  async reviewArtifact(artifactId:string,action:'accept'|'reject'|'pending') {
     return this.mutate(state=>{
       const artifact=state.artifacts.find(item=>item.id===artifactId);
       if(!artifact)throw new Error('Memory artifact not found');
-      artifact.reviewStatus=action==='accept'?'accepted':'rejected';
+      artifact.reviewStatus=action==='accept'?'accepted':action==='reject'?'rejected':'pending';
       if(action==='reject')artifact.status='archived';
       else if(artifact.status==='archived')artifact.status='active';
       artifact.updatedAt=now();
-      this.addEvent(state,artifact.projectId,action==='accept'?'memory-accepted':'memory-rejected',artifact.title,action==='accept'?'A captured memory was accepted into project context.':'A captured memory was dismissed.',artifact.sessionId||undefined,artifact.id);
+      this.addEvent(state,artifact.projectId,action==='accept'?'memory-accepted':action==='reject'?'memory-rejected':'memory-review-restored',artifact.title,action==='accept'?'A captured memory was accepted into project context.':action==='reject'?'A captured memory was dismissed.':'The memory returned to review.',artifact.sessionId||undefined,artifact.id);
       return artifact;
     });
   }
@@ -274,6 +275,17 @@ class CreativeMemoryStore {
       const artifact=state.artifacts.splice(index,1)[0];
       this.addEvent(state,artifact.projectId,'memory-removed',artifact.title,'A memory artifact was removed.',artifact.sessionId||undefined);
       return artifact;
+    });
+  }
+
+  async restoreArtifact(input:MemoryArtifact) {
+    return this.mutate(state=>{
+      if(state.artifacts.some(item=>item.id===input.id))throw new Error('Memory is already restored');
+      if(!state.projects.some(item=>item.id===input.projectId))throw new Error('The original project no longer exists');
+      const restored={...input,updatedAt:now()};
+      state.artifacts.push(restored);
+      this.addEvent(state,restored.projectId,'memory-restored',restored.title,'A removed memory was restored.',restored.sessionId||undefined,restored.id);
+      return restored;
     });
   }
 
@@ -300,13 +312,16 @@ class CreativeMemoryStore {
 
   async search(query:string,projectId?:string):Promise<SearchResult[]> {
     if(!query.trim()) return [];
-    const state=await this.read(); const terms=query.toLowerCase().split(/\s+/).filter(term=>term.length>1);
-    const score=(text:string)=>terms.reduce((sum,term)=>sum+(text.toLowerCase().includes(term)?2:0),0)+(text.toLowerCase().includes(query.toLowerCase())?4:0);
+    const state=await this.read(); const normalizedQuery=query.trim().toLowerCase();const terms=normalizedQuery.split(/\s+/).filter(term=>term.length>1);
+    const score=(text:string,title='')=>{const normalized=text.toLowerCase();const titleText=title.toLowerCase();return terms.reduce((sum,term)=>sum+(normalized.includes(term)?2:0)+(titleText.includes(term)?2:0),0)+(normalized.includes(normalizedQuery)?4:0)+(titleText.includes(normalizedQuery)?5:0)};
+    const projectFor=(id:string)=>state.projects.find(item=>item.id===id);
     const results:SearchResult[]=[];
-    for(const a of state.artifacts){if(a.reviewStatus==='rejected'||(projectId&&a.projectId!==projectId))continue;const s=score(a.title+' '+a.body+' '+a.tags.join(' '));if(s)results.push({id:a.id,kind:'artifact',projectId:a.projectId,sessionId:a.sessionId||undefined,title:a.title,snippet:a.body,meta:a.type+' · '+new Date(a.updatedAt).toLocaleDateString(),score:s})}
-    for(const session of state.sessions){if(projectId&&session.projectId!==projectId)continue;const text=session.messages.map(m=>m.content).join(' ');const s=score(session.title+' '+text);if(s)results.push({id:session.id,kind:'conversation',projectId:session.projectId,sessionId:session.id,title:session.title,snippet:text.slice(0,220),meta:'conversation · '+new Date(session.updatedAt).toLocaleDateString(),score:s})}
-    for(const source of state.sources){if(projectId&&source.projectId!==projectId)continue;const s=score(source.title+' '+source.note+' '+source.url);if(s)results.push({id:source.id,kind:'source',projectId:source.projectId,title:source.title,snippet:source.note||source.url,meta:source.type,score:s})}
-    return results.sort((a,b)=>b.score-a.score).slice(0,30);
+    for(const project of state.projects){if(projectId&&project.id!==projectId)continue;const s=score(project.name+' '+project.description,project.name);if(s)results.push({id:project.id,kind:'project',projectId:project.id,projectName:project.name,title:project.name,snippet:project.description,meta:'project',score:s})}
+    for(const a of state.artifacts){if(a.reviewStatus==='rejected'||(projectId&&a.projectId!==projectId))continue;const project=projectFor(a.projectId);if(!project)continue;const s=score(a.title+' '+a.body+' '+a.tags.join(' '),a.title);if(s)results.push({id:a.id,kind:'artifact',projectId:a.projectId,projectName:project.name,sessionId:a.sessionId||undefined,artifactId:a.id,artifactType:a.type,title:a.title,snippet:a.body,meta:a.type+' · '+new Date(a.updatedAt).toLocaleDateString(),score:s})}
+    for(const session of state.sessions){if(projectId&&session.projectId!==projectId)continue;const project=projectFor(session.projectId);if(!project)continue;const text=session.messages.map(m=>m.content).join(' ');const s=score(session.title+' '+text,session.title);if(s)results.push({id:session.id,kind:'conversation',projectId:session.projectId,projectName:project.name,sessionId:session.id,title:session.title,snippet:text.slice(0,220),meta:'conversation · '+new Date(session.updatedAt).toLocaleDateString(),score:s})}
+    for(const source of state.sources){if(projectId&&source.projectId!==projectId)continue;const project=projectFor(source.projectId);if(!project||!source.url)continue;const s=score(source.title+' '+source.note+' '+source.url,source.title);if(s)results.push({id:source.id,kind:'source',projectId:source.projectId,projectName:project.name,url:source.url,title:source.title,snippet:source.note||source.url,meta:source.type,score:s})}
+    for(const event of state.events){if(projectId&&event.projectId!==projectId)continue;if(!event.sessionId&&!event.artifactId)continue;const project=projectFor(event.projectId);if(!project)continue;const s=score(event.title+' '+event.detail,event.title);if(s)results.push({id:event.id,kind:'history',projectId:event.projectId,projectName:project.name,sessionId:event.sessionId||undefined,artifactId:event.artifactId||undefined,title:event.title,snippet:event.detail,meta:'history · '+new Date(event.createdAt).toLocaleDateString(),score:s})}
+    return results.sort((a,b)=>b.score-a.score||b.meta.localeCompare(a.meta)).slice(0,60);
   }
 
   async resetState(){return this.mutate(state=>{const fresh=createFreshState();Object.assign(state,fresh);return fresh})}
