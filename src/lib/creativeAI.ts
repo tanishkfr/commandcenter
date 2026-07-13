@@ -46,26 +46,26 @@ export async function generateStudioReply(context:Context,message:string){
   if(!configured())return localReply(context,message);
   try{
     const prompt=[
-      'You are Studio, a calm creative collaborator for an interaction designer.',
+      'You are Remainder, a calm creative collaborator for an interaction designer.',
       'Think with the designer, surface tension, and suggest one concrete next move. Keep the response below 140 words.',
       'Project: '+context.project.name+' — '+context.project.description,
       'Known memory:\n'+context.artifacts.slice(-15).map(a=>'['+a.id+'] '+a.type+': '+a.title+' — '+a.body).join('\n'),
       'Sources:\n'+context.sources.slice(-8).map(s=>s.title+' '+s.url+' '+s.note).join('\n'),
-      'Recent conversation:\n'+context.session.messages.slice(-12).map(m=>(m.role==='user'?'Designer':'Studio')+': '+m.content).join('\n'),
+      'Recent conversation:\n'+context.session.messages.slice(-12).map(m=>(m.role==='user'?'Designer':'Remainder')+': '+m.content).join('\n'),
       'Designer: '+message
     ].join('\n\n');
     const text=await nimChat({
       apiKey:process.env.NVIDIA_API_KEY||'',
       model:process.env.NVIDIA_MODEL||DEFAULT_NIM_MODEL,
       messages:[
-        {role:'system',content:'You are Studio, a calm creative collaborator for an interaction designer. Think with the designer, surface tension, and suggest one concrete next move. Keep the response below 140 words.'},
+        {role:'system',content:'You are Remainder, a calm creative collaborator for an interaction designer. Think with the designer, surface tension, and suggest one concrete next move. Keep the response below 140 words.'},
         {role:'user',content:prompt}
       ],
       temperature:.45,
       maxTokens:360
     });
     return{text,citedArtifactIds:related.map(item=>item.id),mode:'ai' as const};
-  }catch(error){console.error('Studio AI failed; using local collaborator:',error);return localReply(context,message)}
+  }catch(error){console.error('Remainder AI failed; using local collaborator:',error);return localReply(context,message)}
 }
 
 const allowed:ArtifactType[]=['decision','principle','question','idea','experiment','reference','risk','action','abandoned'];
@@ -104,7 +104,7 @@ export async function extractSessionMemory(context:Context):Promise<{artifacts:E
       'Return only JSON with an artifacts array. Each item needs type, title, body, confidence, sourceMessageIds, and tags.',
       'Allowed types: decision, principle, question, idea, experiment, reference, risk, action, abandoned. Prefer 3-8 meaningful artifacts.',
       'Existing memory:\n'+context.artifacts.map(a=>a.type+': '+a.title).join('\n'),
-      'Conversation:\n'+context.session.messages.map(m=>'['+m.id+'] '+(m.role==='user'?'Designer':'Studio')+': '+m.content).join('\n')
+      'Conversation:\n'+context.session.messages.map(m=>'['+m.id+'] '+(m.role==='user'?'Designer':'Remainder')+': '+m.content).join('\n')
     ].join('\n\n');
     const content=await nimChat({
       apiKey:process.env.NVIDIA_API_KEY||'',

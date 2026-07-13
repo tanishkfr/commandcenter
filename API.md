@@ -1,6 +1,6 @@
-# Command Center API Documentation
+# Remainder API Documentation
 
-The Command Center provides a headless API that allows external AI systems (like ChatGPT, Claude Code, Gemini, and custom agents) to control the workspace directly.
+The Remainder provides a headless API that allows external AI systems (like ChatGPT, Claude Code, Gemini, and custom agents) to control the workspace directly.
 
 ## Authentication
 

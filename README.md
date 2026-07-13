@@ -1,8 +1,8 @@
-# Creative Memory Studio
+# Remainder
 
 A personal, local-first workspace where conversations become durable project memory.
 
-The conversation is the interface. The project is the memory. Studio is the librarian.
+The conversation is the interface. The project is the memory. Judgment decides what remains.
 
 ## What works
 
@@ -17,7 +17,7 @@ The conversation is the interface. The project is the memory. Studio is the libr
 - Search across conversations, memory, rationale, and sources
 - Follow a chronological project history
 - Export all personal data as JSON
-- Reset to a blank studio, with optional NVIDIA NIM and MCP credential removal
+- Begin again with a blank workspace, with optional NVIDIA NIM and MCP credential removal
 - Review the product purpose and memory workflow in the in-app About section
 - Work without an AI key through the built-in local collaborator and extractor
 
@@ -68,7 +68,7 @@ NVIDIA API keys and MCP credentials are saved only to the ignored local `.env` f
 
 ## AI configuration
 
-Without configuration, Studio runs in local-intelligence mode. Conversations, capture, persistence, search, import, and editing all continue to work.
+Without configuration, Remainder runs in local-intelligence mode. Conversations, capture, persistence, search, import, and editing all continue to work.
 
 For NVIDIA NIM-backed thinking and extraction, create a .env file:
 
@@ -78,7 +78,7 @@ NVIDIA_MODEL=meta/llama-3.3-70b-instruct
 NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
 ~~~
 
-If an AI request fails, Studio automatically falls back to local mode rather than losing the conversation.
+If an AI request fails, Remainder automatically falls back to local mode rather than losing the conversation.
 
 ## Your data
 
@@ -88,7 +88,7 @@ In local mode, personal data is written atomically to:
 .memory/studio.json
 ~~~
 
-+On Vercel, the same state is stored in a private Blob at `creative-memory/studio.json` with conditional writes to prevent silent request races.
+On Vercel, the same state is stored in a private Blob at `creative-memory/studio.json` with conditional writes to prevent silent request races.
 
 The .memory directory is ignored by Git. Use Settings → Export all personal data to create a portable JSON backup.
 

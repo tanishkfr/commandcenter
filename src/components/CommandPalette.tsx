@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Command, CornerDownLeft, Clock, X, Check, ArrowRight, RotateCcw, AlertCircle, Sparkles } from 'lucide-react';
+import { Search, Command, CornerDownLeft, Clock, X, Check, ArrowRight, RotateCcw, AlertCircle, Layers3 } from 'lucide-react';
 
 export default function CommandPalette() {
   const [isOpen, setIsOpen] = useState(false);
@@ -273,7 +273,7 @@ export default function CommandPalette() {
         onClick={() => setIsOpen(true)}
         className="fixed bottom-6 right-6 w-14 h-14 bg-[#1A1A1A] text-white border border-gray-800 rounded-full flex items-center justify-center shadow-2xl hover:bg-black transition-transform hover:scale-105 z-40"
       >
-        <Sparkles size={24} />
+        <Layers3 size={24} />
       </button>
 
       <AnimatePresence>

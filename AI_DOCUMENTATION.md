@@ -1,6 +1,6 @@
 # AI Architecture & Editing Guidelines
 
-This document outlines the data architecture for the Command Center application. It is designed to be deterministic, safely mutable, and strictly validated.
+This document outlines the data architecture for the Remainder application. It is designed to be deterministic, safely mutable, and strictly validated.
 
 **If you are an AI assistant (like Claude Code, ChatGPT, Gemini, or Copilot) modifying this project, YOU MUST STRICTLY FOLLOW THESE RULES.**
 
