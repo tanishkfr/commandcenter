@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
+import { get, put } from '@vercel/blob';
 
 export type ArtifactType = 'decision' | 'principle' | 'question' | 'idea' | 'experiment' | 'reference' | 'risk' | 'action' | 'abandoned';
 export type ArtifactStatus = 'active' | 'resolved' | 'archived';
@@ -20,6 +21,12 @@ export interface SearchResult { id:string; kind:'artifact'|'conversation'|'sourc
 
 const DATA_DIR = path.join(process.cwd(), '.memory');
 const DATA_FILE = path.join(DATA_DIR, 'studio.json');
+const BLOB_PATH = 'creative-memory/studio.json';
+export type CreativeStorageMode='local-file'|'vercel-blob';
+export const creativeStorageMode=():CreativeStorageMode=>process.env.VERCEL?'vercel-blob':'local-file';
+type StateSnapshot={state:CreativeMemoryState;etag?:string};
+const isPreconditionError=(error:unknown)=>error instanceof Error&&(error.name==='BlobPreconditionFailedError'||/precondition/i.test(error.message));
+const cloudStorageError=()=>new Error('Cloud storage is not connected. Add a private Vercel Blob store to this project, then redeploy.');
 const now = () => new Date().toISOString();
 const daysAgo = (days:number) => new Date(Date.now() - days * 86400000).toISOString();
 const makeId = (prefix:string) => prefix + '_' + randomUUID().replace(/-/g, '').slice(0, 12);
@@ -82,33 +89,46 @@ export function createFreshState():CreativeMemoryState {
 class CreativeMemoryStore {
   private queue:Promise<unknown> = Promise.resolve();
 
-  private async ensure() {
-    await fs.mkdir(DATA_DIR, { recursive:true });
-    try { await fs.access(DATA_FILE); }
-    catch { await this.write(seedState()); }
+  private async readCloud():Promise<StateSnapshot> {
+    try {
+      let result:any=await get(BLOB_PATH,{access:'private',useCache:false});
+      if(!result){
+        const initial=seedState();
+        try{const created:any=await put(BLOB_PATH,JSON.stringify(initial),{access:'private',contentType:'application/json',allowOverwrite:false});return{state:initial,etag:created.etag}}
+        catch(error){if(!isPreconditionError(error))throw error;result=await get(BLOB_PATH,{access:'private',useCache:false})}
+      }
+      if(!result||result.status!==200)throw cloudStorageError();
+      const text=await new Response(result.stream).text();
+      return{state:normalizeCreativeMemoryState(JSON.parse(text) as CreativeMemoryState),etag:result.blob.etag};
+    }catch(error){if(isPreconditionError(error))throw error;console.error('Vercel Blob storage error',error);throw cloudStorageError()}
   }
 
-  private async read():Promise<CreativeMemoryState> {
-    await this.ensure();
-    return normalizeCreativeMemoryState(JSON.parse(await fs.readFile(DATA_FILE, 'utf8')) as CreativeMemoryState);
+  private async readSnapshot():Promise<StateSnapshot> {
+    if(creativeStorageMode()==='vercel-blob')return this.readCloud();
+    await fs.mkdir(DATA_DIR,{recursive:true});
+    try{await fs.access(DATA_FILE)}catch{await this.writeLocal(seedState())}
+    return{state:normalizeCreativeMemoryState(JSON.parse(await fs.readFile(DATA_FILE,'utf8')) as CreativeMemoryState)};
   }
 
-  private async write(state:CreativeMemoryState) {
-    await fs.mkdir(DATA_DIR, { recursive:true });
-    const temp = DATA_FILE + '.tmp';
-    await fs.writeFile(temp, JSON.stringify(state, null, 2), 'utf8');
-    await fs.rename(temp, DATA_FILE);
+  private async read():Promise<CreativeMemoryState>{return(await this.readSnapshot()).state}
+  private async writeLocal(state:CreativeMemoryState){
+    await fs.mkdir(DATA_DIR,{recursive:true});const temp=DATA_FILE+'.tmp';await fs.writeFile(temp,JSON.stringify(state,null,2),'utf8');await fs.rename(temp,DATA_FILE);
+  }
+  private async write(state:CreativeMemoryState,etag?:string){
+    if(creativeStorageMode()==='local-file')return this.writeLocal(state);
+    try{await put(BLOB_PATH,JSON.stringify(state),{access:'private',contentType:'application/json',allowOverwrite:true,...(etag?{ifMatch:etag}:{})})}
+    catch(error){if(isPreconditionError(error))throw error;console.error('Vercel Blob write error',error);throw cloudStorageError()}
   }
 
-  private mutate<T>(fn:(state:CreativeMemoryState)=>T|Promise<T>):Promise<T> {
-    const operation = this.queue.then(async()=>{
-      const state = await this.read();
-      const result = await fn(state);
-      await this.write(state);
-      return result;
+  private mutate<T>(fn:(state:CreativeMemoryState)=>T|Promise<T>):Promise<T>{
+    const operation=this.queue.then(async()=>{
+      for(let attempt=0;attempt<3;attempt++){
+        const snapshot=await this.readSnapshot();const result=await fn(snapshot.state);
+        try{await this.write(snapshot.state,snapshot.etag);return result}catch(error){if(!isPreconditionError(error)||attempt===2)throw error}
+      }
+      throw new Error('The studio changed in another request. Please try again.');
     });
-    this.queue = operation.catch(()=>undefined);
-    return operation;
+    this.queue=operation.catch(()=>undefined);return operation;
   }
 
   private addEvent(state:CreativeMemoryState, projectId:string, type:string, title:string, detail:string, sessionId?:string, artifactId?:string) {
@@ -125,7 +145,8 @@ class CreativeMemoryStore {
       artifacts:state.artifacts.filter(item=>item.projectId===project.id).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)),
       sources:state.sources.filter(item=>item.projectId===project.id).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)),
       events:state.events.filter(item=>item.projectId===project.id).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)),
-      aiConfigured:Boolean(process.env.NVIDIA_API_KEY && !process.env.NVIDIA_API_KEY.includes('MY_NVIDIA') && !process.env.NVIDIA_API_KEY.includes('YOUR_NVIDIA'))
+      aiConfigured:Boolean(process.env.NVIDIA_API_KEY && !process.env.NVIDIA_API_KEY.includes('MY_NVIDIA') && !process.env.NVIDIA_API_KEY.includes('YOUR_NVIDIA')),
+      storageMode:creativeStorageMode()
     };
   }
 

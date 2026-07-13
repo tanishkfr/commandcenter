@@ -8,6 +8,7 @@ const DATA_DIR = path.join(process.cwd(), 'src/data');
 const WORKSPACES_DIR = path.join(DATA_DIR, 'workspaces');
 const WORKSPACES_FILE = path.join(DATA_DIR, 'workspaces.json');
 const INBOX_FILE = path.join(DATA_DIR, 'inbox.json');
+const parseJson=<T=unknown>(text:string):T=>JSON.parse(text.replace(/^\uFEFF/,'')) as T;
 
 // Ensure directories exist
 if (!fs.existsSync(WORKSPACES_DIR)) fs.mkdirSync(WORKSPACES_DIR, { recursive: true });
@@ -64,7 +65,7 @@ class DataStore {
   async readWorkspaces(): Promise<WorkspaceData[]> {
     return this.getMutex(WORKSPACES_FILE).run(async () => {
       const data = await fsPromises.readFile(WORKSPACES_FILE, 'utf-8');
-      return z.array(WorkspaceSchema).parse(JSON.parse(data));
+      return z.array(WorkspaceSchema).parse(parseJson(data));
     });
   }
 
@@ -89,7 +90,7 @@ class DataStore {
           if (file.endsWith('.json')) {
             const filePath = path.join(wsPath, file);
             await this.getMutex(filePath).run(async () => {
-              const data = JSON.parse(await fsPromises.readFile(filePath, 'utf-8'));
+              const data = parseJson(await fsPromises.readFile(filePath, 'utf-8'));
               projects.push(ProjectSchema.parse(data));
             });
           }

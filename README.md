@@ -21,9 +21,13 @@ The conversation is the interface. The project is the memory. Studio is the libr
 - Review the product purpose and memory workflow in the in-app About section
 - Work without an AI key through the built-in local collaborator and extractor
 
-There is intentionally no account system. This build is designed for one person running it locally.
+There is intentionally no account system. This build is designed for one person and supports both local Windows use and a private Vercel deployment.
 
-## Start the product
+## Deploy on Vercel
+
++The hosted build includes a real Express API function and durable private Vercel Blob storage. Follow [DEPLOYMENT.md](./DEPLOYMENT.md) for the one-time storage and environment setup.
+
++## Start the product locally
 
 Install dependencies:
 
@@ -78,11 +82,13 @@ If an AI request fails, Studio automatically falls back to local mode rather tha
 
 ## Your data
 
-Personal data is written atomically to:
+In local mode, personal data is written atomically to:
 
 ~~~
 .memory/studio.json
 ~~~
+
++On Vercel, the same state is stored in a private Blob at `creative-memory/studio.json` with conditional writes to prevent silent request races.
 
 The .memory directory is ignored by Git. Use Settings → Export all personal data to create a portable JSON backup.
 
@@ -120,6 +126,6 @@ npm run build
 - Atomic JSON persistence for a zero-setup personal installation
 - Optional NVIDIA NIM integration
 - Local heuristic collaborator and extraction fallback
-- Server-sent events, MCP, command gateway, undo, and the existing project API remain available
+- Authenticated stateless MCP over HTTP, with the legacy local SSE transport retained for compatibility
 
 The local persistence layer is intentionally replaceable. A hosted multi-user version can move the same domain model to PostgreSQL, object storage, and background jobs without changing the product loop.
