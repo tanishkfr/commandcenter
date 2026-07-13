@@ -1,78 +1,58 @@
-# Command Center MCP Server
+# Creative Memory MCP Server
 
-The Command Center provides a complete Model Context Protocol (MCP) server, allowing AI assistants (like Claude, Cursor, Raycast, and Gemini) to seamlessly inspect and modify the workspace state. 
+The MCP server lets compatible AI clients work directly with the projects and memory in your local Creative Memory Studio.
 
-The MCP server wraps the existing backend, reusing its authentication, command parsing, and validation layers.
+## Recommended setup
 
-## Connecting
+1. Start the product with `npm run dev`.
+2. Open [http://localhost:3000](http://localhost:3000).
+3. Open the setup guide using the question-mark button.
+4. Continue to **MCP server**.
+5. Generate a personal credential.
+6. Copy the displayed JSON into your MCP-compatible client.
+7. Keep Creative Memory Studio running whenever the client needs access.
 
-The server uses the standard MCP Server-Sent Events (SSE) transport over HTTP. 
+The generated configuration follows this shape:
 
-- **Endpoint:** `GET /api/mcp/sse` (to establish connection)
-- **Messages Endpoint:** `POST /api/mcp/messages`
+~~~json
+{
+  "mcpServers": {
+    "creative-memory": {
+      "url": "http://localhost:3000/api/mcp/sse",
+      "headers": {
+        "Authorization": "Bearer YOUR_GENERATED_TOKEN"
+      }
+    }
+  }
+}
+~~~
 
-### Authentication
-Both the SSE and Messages endpoints require the standard Command Center API key to be passed via the `Authorization` header:
-```http
-Authorization: Bearer <API_KEY>
-```
+The token is stored locally as `API_KEY` in `.env`. Generating a new token rotates the previous credential.
 
-## Available Resources
+## Creative-memory tools
 
-The MCP server exposes the workspace's internal state via the following URIs. These allow AI agents to safely read the state without executing tools.
+- `listCreativeProjects` -- list projects and memory counts
+- `getProjectMemory` -- read a project with conversations, artifacts, sources, and history
+- `searchProjectMemory` -- search decisions, rationale, conversations, and references
+- `createCreativeProject` -- create a personal memory project
+- `importCreativeConversation` -- import an external AI conversation
+- `captureCreativeSession` -- extract durable memory from a conversation
+- `addCreativeSource` -- attach a Figma file, repository, document, note, or URL
+- `updateMemoryArtifact` -- edit, resolve, or archive captured memory
 
-| Resource URI | Description | Mime Type |
-|--------------|-------------|-----------|
-| `command-center://workspaces` | A complete list of all workspaces and their respective categories. | `application/json` |
-| `command-center://projects` | A list of all projects across all workspaces (includes their metadata). | `application/json` |
-| `command-center://projects/{id}` | Deep dive into a specific project, including all of its inner `todos`. | `application/json` |
-| `command-center://inbox` | A list of all unprocessed inbox items. | `application/json` |
+Legacy command-center todo tools remain available for compatibility.
 
-## Available Tools
+## Resources
 
-The MCP server exposes direct, structured tools to manipulate the workspace. Every tool supports an optional `dryRun` boolean parameter to safely preview the impact of the command.
+- `creative-memory://projects`
+- `creative-memory://projects/{id}`
 
-### 1. Inbox Management
-- **`createInboxItem`**
-  - **Description**: Add a new raw thought or item to the global inbox.
-  - **Parameters**: `text` (string).
-- **`moveInboxItem`**
-  - **Description**: Convert an inbox item into an actionable Todo within a specific project.
-  - **Parameters**: `inboxItemId` (string), `projectId` (string).
+## Connection requirements
 
-### 2. Project Management
-- **`createProject`**
-  - **Description**: Create a new project under a specific workspace and category.
-  - **Parameters**: `workspaceId` (string), `categoryId` (string), `name` (string).
-- **`archiveProject`**
-  - **Description**: Sets the status of a project to "On Hold".
-  - **Parameters**: `projectId` (string).
-- **`updateProject`**
-  - **Description**: Update a project's metadata (or move it to a different workspace/category).
-  - **Parameters**: `projectId` (string), `name`? (string), `status`? (string), `description`? (string), `url`? (string), `workspace`? (string), `category`? (string).
+- Transport: SSE
+- URL: `http://localhost:3000/api/mcp/sse`
+- Header: `Authorization: Bearer <token>`
+- The local server must be running.
+- The client must support remote/SSE MCP servers and custom headers.
 
-### 3. Todo Management
-- **`createTodo`**
-  - **Description**: Create a new todo inside a project.
-  - **Parameters**: `projectId` (string), `text` (string).
-- **`completeTodo`**
-  - **Description**: Toggle the completion status of a todo.
-  - **Parameters**: `projectId` (string), `todoId` (string).
-- **`renameTodo`**
-  - **Description**: Rename an existing todo.
-  - **Parameters**: `projectId` (string), `todoId` (string), `text` (string).
-- **`deleteTodo`**
-  - **Description**: Delete a todo.
-  - **Parameters**: `projectId` (string), `todoId` (string).
-- **`moveTodo`**
-  - **Description**: Move a todo from one project to another.
-  - **Parameters**: `fromProjectId` (string), `toProjectId` (string), `todoId` (string).
-
-## Example Client Usage (Conceptual)
-
-1. **Agent wants to see all projects:**
-   - The agent reads `command-center://projects`.
-2. **Agent wants to capture a thought:**
-   - The agent calls the `createInboxItem` tool with `{ "text": "Draft Q3 roadmap" }`.
-3. **Agent wants to assign an inbox item to a project:**
-   - The agent calls `moveInboxItem` with `{ "inboxItemId": "inbox_123", "projectId": "project_abc" }`.
+Different clients may label this feature as **MCP server**, **custom connector**, **remote MCP**, or **SSE transport**. The URL and Authorization header remain the same.

@@ -3,10 +3,12 @@ import { z } from "zod";
 import { aiGateway } from "./aiGateway.js";
 import { dataStore } from "./dataStore.js";
 import { contextManager } from "./contextManager.js";
+import { creativeMemoryStore } from "./creativeMemory.js";
+import { extractSessionMemory } from "./creativeAI.js";
 
 export const mcpServer = new McpServer({
-  name: "Command Center MCP",
-  version: "1.0.0"
+  name: "Creative Memory Studio",
+  version: "2.0.0"
 });
 
 // Helper for executing commands and formatting responses
@@ -160,9 +162,103 @@ mcpServer.tool(
   }
 );
 
+
+// ----------------------------------------------------------------
+// Creative memory tools
+// ----------------------------------------------------------------
+
+const textResult=(value:unknown)=>({content:[{type:'text' as const,text:JSON.stringify(value,null,2)}]});
+
+mcpServer.tool(
+  'listCreativeProjects',
+  'List personal creative-memory projects and their active conversation counts',
+  {},
+  async()=>{const data=await creativeMemoryStore.exportState();return textResult(data.projects.map(project=>({...project,sessionCount:data.sessions.filter(session=>session.projectId===project.id).length,memoryCount:data.artifacts.filter(artifact=>artifact.projectId===project.id).length})))}
+);
+
+mcpServer.tool(
+  'getProjectMemory',
+  'Read a creative project with conversations, memory artifacts, sources, and history',
+  {projectId:z.string().describe('Creative-memory project ID')},
+  async({projectId})=>textResult(await creativeMemoryStore.bootstrap(projectId))
+);
+
+mcpServer.tool(
+  'searchProjectMemory',
+  'Search a project across decisions, rationale, conversations, and sources',
+  {projectId:z.string().describe('Creative-memory project ID'),query:z.string().min(1).describe('What to find')},
+  async({projectId,query})=>textResult(await creativeMemoryStore.search(query,projectId))
+);
+
+mcpServer.tool(
+  'createCreativeProject',
+  'Create a new personal creative-memory project',
+  {name:z.string().min(1),description:z.string().optional(),color:z.string().optional()},
+  async(args)=>textResult(await creativeMemoryStore.createProject(args))
+);
+
+mcpServer.tool(
+  'importCreativeConversation',
+  'Import a conversation into project memory from pasted text',
+  {projectId:z.string(),title:z.string(),text:z.string().min(1)},
+  async({projectId,title,text})=>textResult(await creativeMemoryStore.importText(projectId,{title,text}))
+);
+
+mcpServer.tool(
+  'captureCreativeSession',
+  'Extract durable decisions, ideas, questions, experiments, risks, and actions from a conversation session',
+  {sessionId:z.string().describe('Conversation session ID')},
+  async({sessionId})=>{
+    const session=await creativeMemoryStore.getSession(sessionId);
+    const context=await creativeMemoryStore.context(session.projectId,session.id);
+    const extraction=await extractSessionMemory(context);
+    const artifacts=await creativeMemoryStore.captureSession(session.id,extraction.artifacts,extraction.mode);
+    return textResult({mode:extraction.mode,artifacts});
+  }
+);
+
+mcpServer.tool(
+  'addCreativeSource',
+  'Add a URL, Figma file, GitHub repository, note, or document reference to a project',
+  {projectId:z.string(),title:z.string().min(1),url:z.string().optional(),note:z.string().optional(),type:z.enum(['link','figma','github','note','document']).optional()},
+  async({projectId,...input})=>textResult(await creativeMemoryStore.addSource(projectId,input))
+);
+
+mcpServer.tool(
+  'updateMemoryArtifact',
+  'Edit, resolve, or archive a durable project-memory artifact',
+  {artifactId:z.string(),title:z.string().optional(),body:z.string().optional(),status:z.enum(['active','resolved','archived']).optional(),type:z.enum(['decision','principle','question','idea','experiment','reference','risk','action','abandoned']).optional(),tags:z.array(z.string()).optional()},
+  async({artifactId,...updates})=>textResult(await creativeMemoryStore.updateArtifact(artifactId,updates))
+);
+
+mcpServer.tool(
+  'reviewMemoryArtifact',
+  'Accept a captured memory into project context or reject it from the review inbox',
+  {artifactId:z.string(),action:z.enum(['accept','reject'])},
+  async({artifactId,action})=>textResult(await creativeMemoryStore.reviewArtifact(artifactId,action))
+);
+
 // ----------------------------------------------------------------
 // Resources
 // ----------------------------------------------------------------
+
+
+mcpServer.resource(
+  'creative-memory-projects',
+  'creative-memory://projects',
+  {description:'All personal creative-memory projects'},
+  async(uri)=>{
+    const data=await creativeMemoryStore.exportState();
+    return{contents:[{uri:uri.href,text:JSON.stringify(data.projects,null,2),mimeType:'application/json'}]};
+  }
+);
+
+mcpServer.resource(
+  'creative-project-memory',
+  new ResourceTemplate('creative-memory://projects/{id}',{list:undefined}),
+  {description:'Project conversations, durable memory, sources, and history'},
+  async(uri,{id})=>({contents:[{uri:uri.href,text:JSON.stringify(await creativeMemoryStore.bootstrap(String(id)),null,2),mimeType:'application/json'}]})
+);
 
 mcpServer.resource(
   "workspaces",

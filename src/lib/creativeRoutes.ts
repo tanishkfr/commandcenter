@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { creativeMemoryStore } from './creativeMemory.js';
 import { extractSessionMemory, generateStudioReply } from './creativeAI.js';
+import { configureAI, connectionStatus, disconnectAI, generateMcpCredential, resetConnections } from './connectionSettings.js';
 
 export function createCreativeRouter(onChange:(event:string,data:unknown)=>void){
   const router=Router();
@@ -10,6 +11,36 @@ export function createCreativeRouter(onChange:(event:string,data:unknown)=>void)
 
   router.get('/bootstrap',handle(async(req,res)=>{
     res.json(await creativeMemoryStore.bootstrap(typeof req.query.projectId==='string'?req.query.projectId:undefined));
+  }));
+
+
+  router.get('/settings/connections',handle(async(_req,res)=>{
+    res.json(await connectionStatus());
+  }));
+
+  router.post('/settings/ai',handle(async(req,res)=>{
+    const status=await configureAI(String(req.body?.apiKey||''),String(req.body?.model||'meta/llama-3.3-70b-instruct'));
+    onChange('connections-updated',{aiConfigured:true});res.json(status);
+  }));
+
+  router.delete('/settings/ai',handle(async(_req,res)=>{
+    const status=await disconnectAI();
+    onChange('connections-updated',{aiConfigured:false});res.json(status);
+  }));
+
+  router.post('/settings/mcp',handle(async(_req,res)=>{
+    const result=await generateMcpCredential();
+    onChange('connections-updated',{mcpConfigured:true});res.status(201).json(result);
+  }));
+
+
+  router.post('/settings/reset',handle(async(req,res)=>{
+    await creativeMemoryStore.resetState();
+    const clearConnections=req.body?.clearConnections!==false;
+    const connections=clearConnections?await resetConnections():await connectionStatus();
+    const bootstrap=await creativeMemoryStore.bootstrap();
+    onChange('studio-reset',{clearConnections});
+    res.json({bootstrap,connections});
   }));
 
   router.post('/projects',handle(async(req,res)=>{
@@ -52,7 +83,7 @@ export function createCreativeRouter(onChange:(event:string,data:unknown)=>void)
     if(!session.messages.length)throw new Error('There is no conversation to capture');
     const context=await creativeMemoryStore.context(session.projectId,session.id);
     const extraction=await extractSessionMemory(context);
-    const artifacts=await creativeMemoryStore.captureSession(session.id,extraction.artifacts);
+    const artifacts=await creativeMemoryStore.captureSession(session.id,extraction.artifacts,extraction.mode);
     onChange('session-captured',{sessionId:session.id,artifacts});
     res.status(201).json({artifacts,mode:extraction.mode});
   }));
@@ -60,6 +91,13 @@ export function createCreativeRouter(onChange:(event:string,data:unknown)=>void)
   router.patch('/artifacts/:id',handle(async(req,res)=>{
     const artifact=await creativeMemoryStore.updateArtifact(req.params.id,req.body||{});
     onChange('artifact-updated',artifact);res.json(artifact);
+  }));
+
+  router.post('/artifacts/:id/review',handle(async(req,res)=>{
+    const action=req.body?.action;
+    if(action!=='accept'&&action!=='reject')throw new Error('Review action must be accept or reject');
+    const artifact=await creativeMemoryStore.reviewArtifact(req.params.id,action);
+    onChange('artifact-reviewed',artifact);res.json(artifact);
   }));
 
   router.delete('/artifacts/:id',handle(async(req,res)=>{

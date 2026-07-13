@@ -17,6 +17,8 @@ The conversation is the interface. The project is the memory. Studio is the libr
 - Search across conversations, memory, rationale, and sources
 - Follow a chronological project history
 - Export all personal data as JSON
+- Reset to a blank studio, with optional NVIDIA NIM and MCP credential removal
+- Review the product purpose and memory workflow in the in-app About section
 - Work without an AI key through the built-in local collaborator and extractor
 
 There is intentionally no account system. This build is designed for one person running it locally.
@@ -29,7 +31,7 @@ Install dependencies:
 npm install
 ~~~
 
-Optional: copy the environment template and add a Gemini key for richer responses and extraction.
+Optional: copy the environment template and add an NVIDIA API key for richer responses and extraction.
 
 ~~~bash
 copy .env.example .env
@@ -45,15 +47,31 @@ Open [http://localhost:3000](http://localhost:3000).
 
 The development server watches both the interface and server code.
 
+## First-run setup
+
+The setup guide opens automatically the first time you run the product. You can replay it at any time with the question-mark button in the top bar or **Settings -> Replay setup guide**.
+
+It walks through:
+
+1. how conversations become durable project memory;
+2. where personal data is stored;
+3. testing and saving an optional NVIDIA NIM connection;
+4. generating a protected MCP credential;
+5. copying a complete MCP client configuration;
+6. starting the first real conversation.
+
+NVIDIA API keys and MCP credentials are saved only to the ignored local `.env` file. The full MCP token is shown when it is generated, so copy it into your client before leaving that setup step.
+
 ## AI configuration
 
 Without configuration, Studio runs in local-intelligence mode. Conversations, capture, persistence, search, import, and editing all continue to work.
 
-For Gemini-backed thinking and extraction, create a .env file:
+For NVIDIA NIM-backed thinking and extraction, create a .env file:
 
 ~~~env
-GEMINI_API_KEY=your_key
-GEMINI_MODEL=gemini-2.5-flash
+NVIDIA_API_KEY=your_key
+NVIDIA_MODEL=meta/llama-3.3-70b-instruct
+NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
 ~~~
 
 If an AI request fails, Studio automatically falls back to local mode rather than losing the conversation.
@@ -82,10 +100,10 @@ The first run creates three starter projects. Everything you add after that is p
 
 ## Keyboard shortcuts
 
-- Ctrl/Cmd + K — search project memory
-- Shift + Ctrl/Cmd + S — capture the current session
-- / — focus the conversation composer
-- Escape — close the active overlay
+- Ctrl + K - search project memory
+- Ctrl + Shift + S - capture the current session
+- / - focus the conversation composer
+- Escape - close the active overlay
 
 ## Verification
 
@@ -100,7 +118,7 @@ npm run build
 - React 19, TypeScript, Vite, Motion, and Lucide for the application
 - Express for the local API
 - Atomic JSON persistence for a zero-setup personal installation
-- Optional Google Gemini integration
+- Optional NVIDIA NIM integration
 - Local heuristic collaborator and extraction fallback
 - Server-sent events, MCP, command gateway, undo, and the existing project API remain available
 
