@@ -52,4 +52,50 @@ describe('Vercel Blob creative memory storage',()=>{
     expect(saved.events).toEqual([expect.objectContaining({type:'memory-restored',artifactId:'memory-removed'})]);
   });
 
+  it('keeps legacy project-selection requests read-only',async()=>{
+    const timestamp='2026-01-01T00:00:00.000Z';
+    const state={version:4,activeProjectId:'cloud',projects:[{id:'cloud',name:'Cloud project',description:'',color:'#796bb4',createdAt:timestamp,updatedAt:timestamp}],sessions:[],artifacts:[],sources:[],events:[]};
+    blobMocks.get.mockResolvedValue({statusCode:200,stream:new Response(JSON.stringify(state)).body,blob:{etag:'read-only-etag'}});
+    const {creativeMemoryStore}=await import('./creativeMemory.js');
+    await expect(creativeMemoryStore.setActiveProject('cloud')).resolves.toBe('cloud');
+    expect(blobMocks.put).not.toHaveBeenCalled();
+  });
+
+  it('retries a transient ETag conflict while reading for search',async()=>{
+    const timestamp='2026-01-01T00:00:00.000Z';
+    const state={version:4,activeProjectId:'cloud',projects:[{id:'cloud',name:'Cloud search',description:'Recoverable memory',color:'#796bb4',createdAt:timestamp,updatedAt:timestamp}],sessions:[],artifacts:[],sources:[],events:[]};
+    const conflict=Object.assign(new Error('Precondition failed: ETag mismatch.'),{name:'BlobPreconditionFailedError'});
+    blobMocks.get.mockRejectedValueOnce(conflict).mockImplementation(async()=>({statusCode:200,stream:new Response(JSON.stringify(state)).body,blob:{etag:'search-retry-etag'}}));
+    const {creativeMemoryStore}=await import('./creativeMemory.js');
+    const results=await creativeMemoryStore.search('recoverable');
+    expect(results).toEqual([expect.objectContaining({kind:'project',projectId:'cloud'})]);
+    expect(blobMocks.get).toHaveBeenCalledTimes(2);
+    expect(blobMocks.put).not.toHaveBeenCalled();
+  });
+
+  it('retries conditional Blob writes beyond the previous three-attempt limit',async()=>{
+    const timestamp='2026-01-01T00:00:00.000Z';
+    const state={version:4,activeProjectId:'cloud',projects:[{id:'cloud',name:'Cloud project',description:'',color:'#796bb4',createdAt:timestamp,updatedAt:timestamp}],sessions:[],artifacts:[],sources:[],events:[]};
+    const conflict=Object.assign(new Error('Precondition failed: ETag mismatch.'),{name:'BlobPreconditionFailedError'});
+    blobMocks.get.mockImplementation(async()=>({statusCode:200,stream:new Response(JSON.stringify(state)).body,blob:{etag:'concurrent-etag'}}));
+    blobMocks.put.mockRejectedValueOnce(conflict).mockRejectedValueOnce(conflict).mockRejectedValueOnce(conflict).mockResolvedValue({etag:'saved-etag'});
+    const {creativeMemoryStore}=await import('./creativeMemory.js');
+    const created=await creativeMemoryStore.createProject({name:'Survives contention'});
+    expect(created.project.name).toBe('Survives contention');
+    expect(blobMocks.put).toHaveBeenCalledTimes(4);
+    const saved=JSON.parse(blobMocks.put.mock.calls[3][1] as string);
+    expect(saved.projects).toEqual(expect.arrayContaining([expect.objectContaining({name:'Survives contention'})]));
+  });
+
+  it('never exposes a raw ETag mismatch after write retries are exhausted',async()=>{
+    const timestamp='2026-01-01T00:00:00.000Z';
+    const state={version:4,activeProjectId:'cloud',projects:[{id:'cloud',name:'Cloud project',description:'',color:'#796bb4',createdAt:timestamp,updatedAt:timestamp}],sessions:[],artifacts:[],sources:[],events:[]};
+    const conflict=Object.assign(new Error('Precondition failed: ETag mismatch.'),{name:'BlobPreconditionFailedError'});
+    blobMocks.get.mockImplementation(async()=>({statusCode:200,stream:new Response(JSON.stringify(state)).body,blob:{etag:'busy-etag'}}));
+    blobMocks.put.mockRejectedValue(conflict);
+    const {creativeMemoryStore}=await import('./creativeMemory.js');
+    await expect(creativeMemoryStore.createProject({name:'Busy project'})).rejects.toThrow('Project memory changed while saving. Please try again.');
+    expect(blobMocks.put).toHaveBeenCalledTimes(7);
+  });
+
 });

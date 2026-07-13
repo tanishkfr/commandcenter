@@ -20,7 +20,6 @@ async function request<T>(url:string,init?:RequestInit):Promise<T>{
 
 export const studioApi={
   bootstrap:(projectId?:string)=>request<Bootstrap>('/api/studio/bootstrap'+(projectId?'?projectId='+encodeURIComponent(projectId):'')),
-  setActiveProject:(projectId:string)=>request<{success:boolean}>('/api/studio/projects/'+projectId+'/active',{method:'POST'}),
   createProject:(input:{name:string;description?:string;color?:string})=>request<{project:StudioProject;session:StudioSession}>('/api/studio/projects',{method:'POST',body:JSON.stringify(input)}),
   updateProject:(projectId:string,input:{name?:string;description?:string;color?:string})=>request<StudioProject>('/api/studio/projects/'+projectId,{method:'PATCH',body:JSON.stringify(input)}),
   deleteProject:(projectId:string)=>request<{snapshot:DeletedProjectSnapshot;activeProjectId:string}>('/api/studio/projects/'+projectId,{method:'DELETE'}),

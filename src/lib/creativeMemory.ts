@@ -27,8 +27,11 @@ const BLOB_PATH = 'creative-memory/studio.json';
 export type CreativeStorageMode='local-file'|'vercel-blob';
 export const creativeStorageMode=():CreativeStorageMode=>process.env.VERCEL?'vercel-blob':'local-file';
 type StateSnapshot={state:CreativeMemoryState;etag?:string};
-const isPreconditionError=(error:unknown)=>error instanceof Error&&(error.name==='BlobPreconditionFailedError'||/precondition/i.test(error.message));
+const isPreconditionError=(error:unknown)=>error instanceof Error&&(error.name==='BlobPreconditionFailedError'||/precondition|etag mismatch/i.test(error.message));
 const cloudStorageError=()=>new Error('Cloud storage is not connected. Add a private Vercel Blob store to this project, then redeploy.');
+const conflictError=()=>new Error('Project memory changed while saving. Please try again.');
+const MAX_BLOB_WRITE_ATTEMPTS=7;
+const waitForConflict=(attempt:number)=>new Promise<void>(resolve=>setTimeout(resolve,Math.min(25*(2**attempt),200)+Math.floor(Math.random()*25)));
 const now = () => new Date().toISOString();
 const daysAgo = (days:number) => new Date(Date.now() - days * 86400000).toISOString();
 const makeId = (prefix:string) => prefix + '_' + randomUUID().replace(/-/g, '').slice(0, 12);
@@ -115,17 +118,24 @@ class CreativeMemoryStore {
   private queue:Promise<unknown> = Promise.resolve();
 
   private async readCloud():Promise<StateSnapshot> {
-    try {
-      let result:any=await get(BLOB_PATH,{access:'private',useCache:false});
-      if(!result||result.statusCode===404){
-        const initial=createFreshState();
-        try{const created:any=await put(BLOB_PATH,JSON.stringify(initial),{access:'private',contentType:'application/json',allowOverwrite:false});return{state:initial,etag:created.etag}}
-        catch(error){if(!isPreconditionError(error))throw error;result=await get(BLOB_PATH,{access:'private',useCache:false})}
+    for(let attempt=0;attempt<3;attempt++){
+      try {
+        let result:any=await get(BLOB_PATH,{access:'private',useCache:false});
+        if(!result||result.statusCode===404){
+          const initial=createFreshState();
+          try{const created:any=await put(BLOB_PATH,JSON.stringify(initial),{access:'private',contentType:'application/json',allowOverwrite:false});return{state:initial,etag:created.etag}}
+          catch(error){if(!isPreconditionError(error))throw error;if(attempt===2)throw new Error('Project memory changed while loading. Please try again.');await waitForConflict(attempt);continue}
+        }
+        if(!result||result.statusCode!==200||!result.stream||!result.blob)throw cloudStorageError();
+        const text=await new Response(result.stream).text();
+        return{state:normalizeCreativeMemoryState(JSON.parse(text) as CreativeMemoryState),etag:result.blob.etag};
+      }catch(error){
+        if(isPreconditionError(error)&&attempt<2){await waitForConflict(attempt);continue}
+        if(isPreconditionError(error))throw new Error('Project memory changed while loading. Please try again.');
+        console.error('Vercel Blob storage error',error);throw cloudStorageError();
       }
-      if(!result||result.statusCode!==200||!result.stream||!result.blob)throw cloudStorageError();
-      const text=await new Response(result.stream).text();
-      return{state:normalizeCreativeMemoryState(JSON.parse(text) as CreativeMemoryState),etag:result.blob.etag};
-    }catch(error){if(isPreconditionError(error))throw error;console.error('Vercel Blob storage error',error);throw cloudStorageError()}
+    }
+    throw cloudStorageError();
   }
 
   private async readSnapshot():Promise<StateSnapshot> {
@@ -147,11 +157,15 @@ class CreativeMemoryStore {
 
   private mutate<T>(fn:(state:CreativeMemoryState)=>T|Promise<T>):Promise<T>{
     const operation=this.queue.then(async()=>{
-      for(let attempt=0;attempt<3;attempt++){
+      for(let attempt=0;attempt<MAX_BLOB_WRITE_ATTEMPTS;attempt++){
         const snapshot=await this.readSnapshot();const result=await fn(snapshot.state);
-        try{await this.write(snapshot.state,snapshot.etag);return result}catch(error){if(!isPreconditionError(error)||attempt===2)throw error}
+        try{await this.write(snapshot.state,snapshot.etag);return result}catch(error){
+          if(!isPreconditionError(error))throw error;
+          if(attempt===MAX_BLOB_WRITE_ATTEMPTS-1)throw conflictError();
+          await waitForConflict(attempt);
+        }
       }
-      throw new Error('The project memory changed in another request. Please try again.');
+      throw conflictError();
     });
     this.queue=operation.catch(()=>undefined);return operation;
   }
@@ -176,11 +190,9 @@ class CreativeMemoryStore {
   }
 
   async setActiveProject(projectId:string) {
-    return this.mutate(state=>{
-      if (!state.projects.some(item=>item.id===projectId)) throw new Error('Project not found');
-      state.activeProjectId=projectId;
-      return projectId;
-    });
+    const state=await this.read();
+    if(!state.projects.some(item=>item.id===projectId))throw new Error('Project not found');
+    return projectId;
   }
 
   async createProject(input:{name:string;description?:string;color?:string}) {

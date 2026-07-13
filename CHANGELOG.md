@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased — admissions quality pass
+## Unreleased — search reliability
+
+- Removed Blob writes from search-result and project navigation.
+- Added bounded ETag conflict retry with calm recovery instead of exposing storage internals.
+
+## Admissions quality pass
 
 - Repaired project create, open, rename, recolor, delete, restore, and last-project safeguards.
 - Repaired Reset everything across local files and private Vercel Blob storage.
