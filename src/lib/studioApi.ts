@@ -26,7 +26,7 @@ export const studioApi={
   restoreProject:(snapshot:DeletedProjectSnapshot)=>request<{project:StudioProject;activeSession:StudioSession|null}>('/api/studio/projects/restore',{method:'POST',body:JSON.stringify({snapshot})}),
   createSession:(projectId:string,title?:string)=>request<StudioSession>('/api/studio/sessions',{method:'POST',body:JSON.stringify({projectId,title})}),
   getSession:(sessionId:string)=>request<StudioSession>('/api/studio/sessions/'+sessionId),
-  sendMessage:(sessionId:string,content:string)=>request<{user:StudioSession['messages'][number];assistant:StudioSession['messages'][number];mode:'ai'|'local'}>('/api/studio/sessions/'+sessionId+'/messages',{method:'POST',body:JSON.stringify({content})}),
+  sendMessage:(sessionId:string,content:string)=>request<{user:StudioSession['messages'][number];assistant:StudioSession['messages'][number];mode:'ai'|'local';fallbackReason?:string}>('/api/studio/sessions/'+sessionId+'/messages',{method:'POST',body:JSON.stringify({content})}),
   capture:(sessionId:string)=>request<{artifacts:MemoryArtifact[];mode:'ai'|'local'}>('/api/studio/sessions/'+sessionId+'/capture',{method:'POST'}),
   updateArtifact:(artifactId:string,input:Partial<{title:string;body:string;status:ArtifactStatus;type:ArtifactType;tags:string[]}>)=>request<MemoryArtifact>('/api/studio/artifacts/'+artifactId,{method:'PATCH',body:JSON.stringify(input)}),
   reviewArtifact:(artifactId:string,action:'accept'|'reject'|'pending',supersedeIds:string[]=[])=>request<MemoryArtifact>('/api/studio/artifacts/'+artifactId+'/review',{method:'POST',body:JSON.stringify({action,supersedeIds})}),

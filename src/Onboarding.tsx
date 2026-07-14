@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowRight, Check, CheckCircle2, Copy, Database, ExternalLin
 import { studioApi, type Bootstrap, type ConnectionStatus } from './lib/studioApi';
 import BrandMark from './BrandMark';
 
-type Props={data:Bootstrap;onClose:()=>void;onConfigured:()=>Promise<void>|void};
+type Props={data:Bootstrap;resetComplete?:boolean;onClose:()=>void;onConfigured:()=>Promise<void>|void};
 
 const steps=[
   {label:'Welcome',icon:Layers3},
@@ -13,7 +13,7 @@ const steps=[
   {label:'Ready',icon:CheckCircle2}
 ];
 
-export default function Onboarding({data,onClose,onConfigured}:Props){
+export default function Onboarding({data,resetComplete=false,onClose,onConfigured}:Props){
   const [step,setStep]=useState(0);
   const [status,setStatus]=useState<ConnectionStatus|null>(null);
   const [apiKey,setApiKey]=useState('');
@@ -72,7 +72,7 @@ export default function Onboarding({data,onClose,onConfigured}:Props){
         <button type="button" className="onboarding-close" onClick={complete} aria-label="Close onboarding"><X size={17}/></button>
         <div className="onboarding-progress"><span style={{width:((step+1)/steps.length*100)+'%'}}/></div>
         <div className="onboarding-step" key={step}>
-          {step===0&&<Welcome/>}
+          {step===0&&<Welcome resetComplete={resetComplete}/>}
             {step===1&&<StudioSetup data={data} status={status}/>}
             {step===2&&<AiSetup status={status} apiKey={apiKey} model={model} busy={busy} onKey={setApiKey} onModel={setModel} onConnect={configureAI} onSkip={next}/>}
             {step===3&&<McpSetup status={status} token={mcpToken} config={configText} busy={busy} copied={copied} acknowledged={mcpAcknowledged} onGenerate={generateMcp} onCopy={copy} onAcknowledge={setMcpAcknowledged}/>}
@@ -95,8 +95,9 @@ export default function Onboarding({data,onClose,onConfigured}:Props){
   </div>
 }
 
-function Welcome(){
+function Welcome({resetComplete}:{resetComplete:boolean}){
   return <div className="onboarding-copy welcome-copy"><p className="eyebrow">Welcome to Remainder</p><h1>Creative work<br/>should remember itself.</h1><p className="onboarding-lede">Think naturally. When something changes the work, keep it. Remainder carries decisions, questions, and unfinished threads forward with the project.</p>
+    {resetComplete&&<div className="reset-success-banner" role="status"><CheckCircle2 size={17}/><div><strong>The workspace is clear.</strong><p>One blank project is ready. Hosted Vercel, NVIDIA, and MCP variables were left unchanged.</p></div></div>}
     <div className="memory-loop"><div><span><MessageCircleMore size={18}/></span><strong>Have a conversation</strong><small>Think naturally. No filing system required.</small></div><ArrowRight size={16}/><div><span><BrandMark compact/></span><strong>Keep what matters</strong><small>Review decisions, ideas, and questions.</small></div><ArrowRight size={16}/><div><span><Layers3 size={18}/></span><strong>Build project memory</strong><small>Search what changed, when, and why.</small></div></div>
   </div>
 }

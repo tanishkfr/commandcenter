@@ -24,13 +24,14 @@ export interface SearchResult { id:string; kind:SearchResultKind; projectId:stri
 const DATA_DIR = process.env.REMAINDER_DATA_DIR ? path.resolve(process.env.REMAINDER_DATA_DIR) : path.join(process.cwd(), '.memory');
 const DATA_FILE = path.join(DATA_DIR, 'studio.json');
 const BLOB_PATH = 'creative-memory/studio.json';
+const BLOB_DIAGNOSTIC_PATH = 'creative-memory/connection-check.json';
 export type CreativeStorageMode='local-file'|'vercel-blob';
 export const creativeStorageMode=():CreativeStorageMode=>process.env.VERCEL?'vercel-blob':'local-file';
-type StateSnapshot={state:CreativeMemoryState;etag?:string};
+type StateSnapshot={state:CreativeMemoryState};
 const isPreconditionError=(error:unknown)=>error instanceof Error&&(error.name==='BlobPreconditionFailedError'||/precondition|etag mismatch/i.test(error.message));
 const cloudStorageError=()=>new Error('Cloud storage is not connected. Add a private Vercel Blob store to this project, then redeploy.');
-const conflictError=()=>new Error('Project memory changed while saving. Please try again.');
-const MAX_BLOB_WRITE_ATTEMPTS=7;
+
+
 const waitForConflict=(attempt:number)=>new Promise<void>(resolve=>setTimeout(resolve,Math.min(25*(2**attempt),200)+Math.floor(Math.random()*25)));
 const now = () => new Date().toISOString();
 const daysAgo = (days:number) => new Date(Date.now() - days * 86400000).toISOString();
@@ -161,12 +162,12 @@ class CreativeMemoryStore {
         let result:any=await get(BLOB_PATH,{access:'private',useCache:false});
         if(!result||result.statusCode===404){
           const initial=createFreshState();
-          try{const created:any=await put(BLOB_PATH,JSON.stringify(initial),{access:'private',contentType:'application/json',allowOverwrite:false});return{state:initial,etag:created.etag}}
+          try{await put(BLOB_PATH,JSON.stringify(initial),{access:'private',contentType:'application/json',allowOverwrite:false});return{state:initial}}
           catch(error){if(!isPreconditionError(error))throw error;if(attempt===2)throw new Error('Project memory changed while loading. Please try again.');await waitForConflict(attempt);continue}
         }
         if(!result||result.statusCode!==200||!result.stream||!result.blob)throw cloudStorageError();
         const text=await new Response(result.stream).text();
-        return{state:normalizeCreativeMemoryState(JSON.parse(text) as CreativeMemoryState),etag:result.blob.etag};
+        return{state:normalizeCreativeMemoryState(JSON.parse(text) as CreativeMemoryState)};
       }catch(error){
         if(isPreconditionError(error)&&attempt<2){await waitForConflict(attempt);continue}
         if(isPreconditionError(error))throw new Error('Project memory changed while loading. Please try again.');
@@ -187,33 +188,28 @@ class CreativeMemoryStore {
   private async writeLocal(state:CreativeMemoryState){
     await fs.mkdir(DATA_DIR,{recursive:true});const temp=DATA_FILE+'.tmp';await fs.writeFile(temp,JSON.stringify(state,null,2),'utf8');await fs.rename(temp,DATA_FILE);
   }
-  private async write(state:CreativeMemoryState,etag?:string){
+  private async write(state:CreativeMemoryState){
     if(creativeStorageMode()==='local-file')return this.writeLocal(state);
-    try{await put(BLOB_PATH,JSON.stringify(state),{access:'private',contentType:'application/json',allowOverwrite:true,...(etag?{ifMatch:etag}:{})})}
+    // Remainder is a personal, single-user workspace. Vercel may cache metadata for
+    // an overwritten Blob, which can make a freshly read ETag stale and reject every
+    // subsequent action. Serialize writes within the running instance and overwrite
+    // directly so messages and reset remain available immediately after another save.
+    try{await put(BLOB_PATH,JSON.stringify(state),{access:'private',contentType:'application/json',allowOverwrite:true})}
     catch(error){if(isPreconditionError(error))throw error;console.error('Vercel Blob write error',error);throw cloudStorageError()}
   }
 
   private mutate<T>(fn:(state:CreativeMemoryState)=>T|Promise<T>):Promise<T>{
     const operation=this.queue.then(async()=>{
-      for(let attempt=0;attempt<MAX_BLOB_WRITE_ATTEMPTS;attempt++){
-        const snapshot=await this.readSnapshot();const result=await fn(snapshot.state);
-        try{await this.write(snapshot.state,snapshot.etag);return result}catch(error){
-          if(!isPreconditionError(error))throw error;
-          if(attempt===MAX_BLOB_WRITE_ATTEMPTS-1)throw conflictError();
-          await waitForConflict(attempt);
-        }
-      }
-      throw conflictError();
+      const snapshot=await this.readSnapshot();const result=await fn(snapshot.state);
+      await this.write(snapshot.state);return result;
     });
     this.queue=operation.catch(()=>undefined);return operation;
   }
-
   private addEvent(state:CreativeMemoryState, projectId:string, type:string, title:string, detail:string, sessionId?:string, artifactId?:string) {
     state.events.push({ id:makeId('event'), projectId, type, title, detail, sessionId:sessionId||null, artifactId:artifactId||null, createdAt:now() });
   }
 
-  async bootstrap(projectId?:string) {
-    const state = await this.read();
+  private bootstrapFromState(state:CreativeMemoryState,projectId?:string) {
     const project = state.projects.find(item=>item.id===projectId) || state.projects.find(item=>item.id===state.activeProjectId) || state.projects[0];
     if (!project) throw new Error('No project exists');
     const sessions = state.sessions.filter(item=>item.projectId===project.id).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));
@@ -226,6 +222,8 @@ class CreativeMemoryStore {
       storageMode:creativeStorageMode()
     };
   }
+
+  async bootstrap(projectId?:string) {return this.bootstrapFromState(await this.read(),projectId)}
 
   async setActiveProject(projectId:string) {
     const state=await this.read();
@@ -484,8 +482,19 @@ class CreativeMemoryStore {
     return results.sort((a,b)=>b.score-a.score||b.meta.localeCompare(a.meta)).slice(0,60);
   }
 
-  async resetState(){return this.mutate(state=>{const fresh=createFreshState();Object.assign(state,fresh);return fresh})}
+  async resetAndBootstrap(){return this.mutate(state=>{const fresh=createFreshState();Object.assign(state,fresh);return this.bootstrapFromState(state)})}
 
+  async verifyStorageWrite(){
+    const check=JSON.stringify({ok:true,checkedAt:now()});
+    if(creativeStorageMode()==='vercel-blob'){
+      try{await put(BLOB_DIAGNOSTIC_PATH,check,{access:'private',contentType:'application/json',allowOverwrite:true});return true}
+      catch(error){console.error('Vercel Blob write check failed',error);throw cloudStorageError()}
+    }
+    await fs.mkdir(DATA_DIR,{recursive:true});
+    const file=path.join(DATA_DIR,'.connection-check-'+randomUUID()+'.json');
+    try{await fs.writeFile(file,check,'utf8');await fs.unlink(file);return true}
+    catch(error){console.error('Local storage write check failed',error);throw new Error('Local project storage is not writable. Check the folder permissions, then try again.')}
+  }
   async exportState(){return this.read()}
 }
 export const creativeMemoryStore=new CreativeMemoryStore();
