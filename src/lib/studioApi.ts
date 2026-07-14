@@ -1,9 +1,9 @@
 import type { ArtifactStatus, ArtifactType, DeletedProjectSnapshot, MemoryArtifact, SearchResult, SourceType, StudioProject, StudioSession, StudioSource, TimelineEvent } from './creativeMemory';
 
 export type ConnectionStatus={
-  aiConfigured:boolean;aiModel:string;aiProvider:'NVIDIA NIM';mcpConfigured:boolean;mcpUrl:string;mcpTokenPreview:string;dataFile:string;runtime:'local'|'vercel';configWritable:boolean;storageMode:'local-file'|'vercel-blob';
+  aiConfigured:boolean;aiModel:string;aiProvider:'Vercel AI Gateway';aiManagedBy:'vercel-oidc'|'api-key'|'offline';dataFile:string;runtime:'local'|'vercel';configWritable:boolean;storageMode:'local-file'|'vercel-blob';
 };
-export type Diagnostics={runtime:'local'|'vercel';storage:{ok:boolean;detail:string};ai:{ok:boolean;mode:'nim'|'local';detail:string};mcp:{ok:boolean;detail:string;url:string};configWritable:boolean};
+export type Diagnostics={runtime:'local'|'vercel';storage:{ok:boolean;detail:string};ai:{ok:boolean;mode:'gateway'|'offline';detail:string};configWritable:boolean};
 export type Bootstrap={
   project:StudioProject;projects:StudioProject[];sessions:StudioSession[];activeSession:StudioSession|null;
   artifacts:MemoryArtifact[];sources:StudioSource[];events:TimelineEvent[];aiConfigured:boolean;storageMode:'local-file'|'vercel-blob';
@@ -36,9 +36,6 @@ export const studioApi={
   importText:(input:{projectId:string;title:string;text:string})=>request<StudioSession>('/api/studio/import',{method:'POST',body:JSON.stringify(input)}),
   search:(query:string,projectId?:string,signal?:AbortSignal)=>request<{results:SearchResult[]}>('/api/studio/search?q='+encodeURIComponent(query)+(projectId?'&projectId='+encodeURIComponent(projectId):''),{signal}),
   connectionStatus:()=>request<ConnectionStatus>('/api/studio/settings/connections'),
-  configureAI:(apiKey:string,model:string)=>request<ConnectionStatus>('/api/studio/settings/ai',{method:'POST',body:JSON.stringify({apiKey,model})}),
-  disconnectAI:()=>request<ConnectionStatus>('/api/studio/settings/ai',{method:'DELETE'}),
-  generateMcp:()=>request<{token:string;url:string;config:Record<string,unknown>}>('/api/studio/settings/mcp',{method:'POST'}),
   diagnostics:(testAI=false)=>request<Diagnostics>('/api/studio/settings/diagnostics',{method:'POST',body:JSON.stringify({testAI})}),
-  resetStudio:(clearConnections=true)=>request<{bootstrap:Bootstrap;connections:ConnectionStatus;warning?:string}>('/api/studio/settings/reset',{method:'POST',body:JSON.stringify({clearConnections})}),
+  resetStudio:()=>request<{bootstrap:Bootstrap;connections:ConnectionStatus;warning?:string}>('/api/studio/settings/reset',{method:'POST'}),
 };

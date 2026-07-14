@@ -1,43 +1,42 @@
-# Remainder architecture
+﻿# Architecture
 
-## Boundary
+```text
+React + Vite client
+  → /api/studio
+Express server
+  → creative memory store
+      → local .memory/studio.json
+      → or Private Vercel Blob with ETags
+  → Vercel AI Gateway
+      → hosted conversation and extraction
+      → prompt-specific offline fallback
+```
 
-Remainder is one React application, one Express API, and one creative-memory domain store. Local, production, and Vercel runtimes expose the same domain behavior. The removed Command Center dashboard, command parser, workspace fixtures, and file-per-project layer are not part of the active runtime.
+## Domain model
 
-## Product flow
+Projects contain conversations, sources, memory artifacts, and history events. Memory artifacts preserve provenance, confidence, review state, relatedness, and supersession. A captured item does not enter active context until the user accepts it.
 
-~~~text
-Conversation
-  → capture candidates
-  → human review
-      → dismiss
-      → keep alongside
-      → change direction
-  → active project context
-  → conversation, memory, search, history, context rail, export, MCP
-~~~
+The same model powers conversation context, Memory, History, Search, export, and the living context rail.
 
-## Memory schema, version 4
+## Storage
 
-A new workspace begins with one editable project and one usable conversation; the old three-project demonstration migrates away. Every artifact contains review status, origin, confidence, source message IDs, related IDs, supersedesArtifactIds, and supersededByArtifactId. Only accepted, active memory enters AI context.
+Local development writes `.memory/studio.json`. `REMAINDER_DATA_DIR` can isolate verification data. Vercel uses one private Blob object and optimistic ETag writes. Reset replaces that state with one valid blank project.
 
-## Invariants
+## AI boundary
 
-1. Capture never enters context without review.
-2. Supersession is explicit; accepting without IDs keeps both memories active.
-3. Only accepted related memory in the same project can be superseded.
-4. Superseded memory is resolved, never deleted.
-5. Undo, successor deletion, or review release restores earlier direction.
-6. Every mutation writes history.
-7. Local writes are atomic; Blob writes use conditional replacement, bounded backoff, and retry.
-8. Export contains the complete portable state.
-9. A completed user/assistant exchange persists in one mutation; a failed exchange leaves the browser draft intact.
-10. AI failure falls back locally before a conversation is lost.
-11. Project delete has a complete snapshot for Undo, and the last project cannot be deleted.
-12. Reset always produces one valid project and one valid conversation.
-13. Project navigation is browser-local and never creates a Blob write.
-14. The project—not the model—is the durable object.
+`creativeAI.ts` is the only hosted-model boundary. It calls the OpenAI-compatible Vercel AI Gateway endpoint using `VERCEL_OIDC_TOKEN` in production or `AI_GATEWAY_API_KEY` locally. Default model: `google/gemini-2.5-flash-lite`.
 
-## Storage and trust
+Provider failure does not break conversation. The offline path uses the actual prompt, inferred intent, matching memory, and project context to produce a distinct response, then exposes the recovery reason separately.
 
-Local mode writes .memory/studio.json. REMAINDER_DATA_DIR isolates verification data. Vercel uses a private Blob object and ETags. Credentials remain in environment configuration and are excluded from export. MCP mutations require bearer authentication. The browser API assumes a private personal deployment; public multi-user hosting requires authentication and authorization first.
+## Failure semantics
+
+- Message writes are atomic after a response is available.
+- Failed client requests retain the composer draft.
+- Storage conflicts never silently overwrite newer state.
+- Deleted projects and memory support Undo.
+- Capture candidates require explicit review.
+- Reset preserves deployment infrastructure and reports failure without claiming success.
+
+## Security boundary
+
+Credentials are environment-only and excluded from export. The browser API assumes a private personal deployment. Public multi-user hosting requires authentication and per-user authorization before release.

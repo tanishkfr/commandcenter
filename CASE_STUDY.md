@@ -28,7 +28,7 @@ Motion follows reveal, carry, and settle. The candidate moves toward memory only
 
 ## Systems contribution
 
-The domain model separates confidence from consent, active context from retained history, relatedness from supersession, deletion from reversible removal, and model availability from product availability. The same semantics hold across UI, REST, storage, search, export, and MCP.
+The domain model separates confidence from consent, active context from retained history, relatedness from supersession, deletion from reversible removal, and model availability from product availability. The same semantics hold across UI, REST, storage, search, export, and the living context rail.
 
 ## Demonstrated
 

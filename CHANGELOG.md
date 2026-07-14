@@ -1,28 +1,19 @@
-# Changelog
+﻿# Changelog
 
-## Unreleased — search reliability
+## Unreleased
 
-- Removed Blob writes from search-result and project navigation.
-- Added bounded ETag conflict retry with calm recovery instead of exposing storage internals.
+- Replaced the brittle provider-specific AI connection with Vercel AI Gateway and deployment identity authentication.
+- Made offline guidance prompt-specific, context-aware, and visibly distinct from hosted AI.
+- Reduced the hosted response timeout and added actionable error categories for identity, credits, model, and availability failures.
+- Removed the unfinished external-tool integration from onboarding, Help, server routes, dependencies, and documentation.
+- Simplified reset so it always clears project memory while preserving deployment infrastructure.
+- Updated connection health, onboarding, About, and memory provenance copy to match the real operating mode.
+- Added regression tests proving unrelated prompts cannot receive the same offline response.
 
-## Admissions quality pass
+## 1.0 production hardening
 
-- Repaired project create, open, rename, recolor, delete, restore, and last-project safeguards.
-- Repaired Reset everything across local files and private Vercel Blob storage.
-- Made conversations atomic, retained failed drafts, and shortened NIM fallback time.
-- Added live storage, NVIDIA NIM, and MCP connection diagnostics.
-- Corrected first-run MCP setup and the sample streamable HTTP endpoint.
-- Removed obsolete Command Center runtime, fixtures, scratch scripts, and stale docs.
-- Migrated creative memory to schema version 4 with a blank, usable first workspace.
-- Added explicit keep-alongside and change-direction review choices.
-- Added retained supersession lineage and reversible restoration.
-- Excluded earlier direction from active AI context while retaining history.
-- Added lifecycle motion, accessible labels, and REMAINDER_DATA_DIR.
-- Replaced stale API and architecture documentation.
-- Added an honest case study, quality gate, research protocol, and portfolio storyboard.
-- Repaired local dependencies after the repository move.
-
-## Remainder identity
-
-- Renamed Command Center to Remainder.
-- Added The Carry mark, oxide palette, editorial voice, onboarding, About, NIM, MCP, reset, search, living context, and Blob recovery.
+- Repaired project reset, editing, deletion, restoration, search, capture, and connection diagnostics.
+- Made conversations atomic and retained failed drafts.
+- Added private Vercel Blob concurrency protection and recovery guidance.
+- Completed keyboard, focus, empty-state, motion, typography, and visible-interaction audits.
+- Added the Remainder identity, editorial voice, grouped search, living context, and reversible memory review.

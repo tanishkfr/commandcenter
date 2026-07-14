@@ -1,69 +1,67 @@
-# Remainder
+﻿# Remainder
 
-A personal, local-first workspace where conversations become durable project memory.
+Remainder is a personal project-memory workspace where conversations become durable creative context. It keeps the decisions, questions, experiments, risks, and unfinished threads that explain how a project became itself.
 
-**The conversation is the interface. The project is the memory. Judgment decides what remains.**
+## The working loop
 
-## Product loop
+1. Create or open a project.
+2. Think through a design problem in conversation.
+3. Keep the session when something should endure.
+4. Review the extracted memory before it joins project context.
+5. Recover the reasoning through Memory, History, Search, or export.
 
-1. Open a project and continue a conversation.
-2. Keep from the session when something changes the work.
-3. Review every candidate before it enters project context.
-4. Keep new context alongside earlier memory, or explicitly mark a changed direction.
-5. Recover the reasoning through Memory, History, Search, export, or MCP.
-6. Undo review and deletion decisions without erasing provenance.
+There is no account system in this personal build. The core workflow remains usable without hosted AI: prompt-specific offline guidance responds to the actual subject and local extraction keeps explicit decisions and questions. Vercel AI Gateway adds richer project-aware synthesis when connected.
 
-Remainder has no account system in this personal build. It works without an AI key through a deterministic local collaborator and extractor. NVIDIA NIM adds richer synthesis when configured.
+## Included
 
-## Complete workflows
+- Editable projects and conversations
+- Project-aware AI Gateway conversation
+- Prompt-specific offline guidance
+- Reviewable memory capture with provenance
+- Grouped search across projects, conversations, memory, sources, and history
+- Reversible project and memory deletion
+- Workspace export and complete reset
+- Local file storage or Private Vercel Blob
+- In-product connection diagnostics and recovery instructions
 
-- Create, open, rename, recolor, delete, and restore projects
-- Persistent conversations, sources, import, export, and a true clean-start reset
-- Local or NVIDIA NIM conversation and extraction
-- Human-reviewed memory with message-level provenance
-- Explicit supersession with retained lineage and undo
-- Grouped search across projects, memory, conversations, history, and sources
-- Living context rail and chronological history
-- Protected MCP access
-- Atomic local storage and private Vercel Blob persistence
-- Keyboard navigation, focus states, reduced motion, and recovery states
+## Run locally
 
-## Run locally on Windows
-
-~~~powershell
+```powershell
 npm install
-Copy-Item .env.example .env
 npm run dev
-~~~
+```
 
-Open http://localhost:3000. The environment file is optional.
+Open `http://localhost:3000`.
 
-## Optional NVIDIA NIM
+Local project data is written to `.memory/studio.json`. To isolate test or demo data, set `REMAINDER_DATA_DIR` to another local directory.
 
-~~~env
-NVIDIA_API_KEY=your_key
-NVIDIA_MODEL=meta/llama-3.3-70b-instruct
-NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
-~~~
+## Optional hosted AI in local development
 
-If NIM is unavailable or times out, Remainder falls back locally. A failed exchange leaves the draft in the composer so it can be retried.
+Create an AI Gateway key in Vercel and add it to a local `.env` file:
 
-## Connection checks
+```text
+AI_GATEWAY_API_KEY=your_key
+AI_MODEL=google/gemini-2.5-flash-lite
+```
 
-Open **Settings -> Connection health** to verify project storage and MCP configuration. **Run check** also makes a live NVIDIA NIM request. The setup guide generates the protected MCP client configuration and explains the Vercel environment variables.
+Restart the server after changing `.env`. Never expose this key through a `VITE_` variable.
 
-## Data and deployment
+On Vercel, do not create or copy `VERCEL_OIDC_TOKEN`; Vercel injects it automatically for the deployment.
 
-Local memory is written atomically to .memory/studio.json. Set REMAINDER_DATA_DIR to isolate development or smoke-test data. Hosted deployments use private Vercel Blob storage; see [DEPLOYMENT.md](./DEPLOYMENT.md).
+## Verify
 
-**Begin again** removes all project memory and creates one blank, usable project. Locally it can also remove NIM and MCP credentials. On Vercel, environment variables remain in Vercel and project memory alone is reset.
-
-## Verification
-
-~~~powershell
-npm run lint
+```powershell
 npm test
+npm run lint
 npm run build
-~~~
+```
 
-See [QUALITY.md](./QUALITY.md), [ARCHITECTURE.md](./ARCHITECTURE.md), [CASE_STUDY.md](./CASE_STUDY.md), [RESEARCH_PROTOCOL.md](./RESEARCH_PROTOCOL.md), and [PORTFOLIO_STORYBOARD.md](./PORTFOLIO_STORYBOARD.md).
+In the product, open **Settings → Connection health** and run the full check. It verifies a real storage write and, when configured, a live AI Gateway response.
+
+## Reset and recovery
+
+**Begin again** removes every project, conversation, memory, source, and history event, then creates one blank project and restarts onboarding. Storage and AI deployment settings are deliberately preserved because they are infrastructure, not project memory.
+
+Before resetting, use **Export workspace backup** if anything may be useful later.
+
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for hosted setup and [API.md](./API.md) for the first-party API.

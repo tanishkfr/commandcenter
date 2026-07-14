@@ -1,64 +1,57 @@
-# Remainder API
+﻿# Remainder API
 
-The active first-party API is mounted at **/api/studio**. The protected MCP endpoint is **/api/mcp**.
+The first-party API is mounted at **/api/studio**. All responses are JSON unless the export route is downloading a file.
 
-## Health and bootstrap
+## Health and state
 
-- GET /api/health
-- GET /api/studio/bootstrap?projectId=…
+- `GET /api/health`
+- `GET /api/studio/bootstrap?projectId=...`
+- `GET /api/studio/settings/connections`
+- `POST /api/studio/settings/diagnostics` with optional `{"testAI":true}`
+- `POST /api/studio/settings/reset`
+- `GET /api/studio/export`
 
-## Connections and reset
+Diagnostics verifies storage configuration. With `testAI`, it performs a real AI Gateway request when authentication is available. Reset clears project memory and preserves deployment infrastructure.
 
-- GET /api/studio/settings/connections
-- POST /api/studio/settings/ai
-- DELETE /api/studio/settings/ai
-- POST /api/studio/settings/mcp
-- POST /api/studio/settings/reset
-- POST /api/studio/settings/diagnostics
+## Projects
 
-Secrets are never returned after storage. Local reset can preserve or remove credentials. Hosted reset cannot mutate Vercel environment variables. Diagnostics checks storage and configuration; `{"testAI":true}` adds a live NIM request.
+- `POST /api/studio/projects`
+- `PATCH /api/studio/projects/:id`
+- `DELETE /api/studio/projects/:id`
+- `POST /api/studio/projects/restore`
 
-## Projects and conversations
+Deleting a project returns a snapshot that can be restored by the browser's Undo action. A workspace always retains at least one project.
 
-- POST /api/studio/projects
-- PATCH /api/studio/projects/:id
-- DELETE /api/studio/projects/:id
-- POST /api/studio/projects/restore
-- POST /api/studio/sessions
-- GET /api/studio/sessions/:id
-- POST /api/studio/sessions/:id/messages
-- POST /api/studio/sessions/:id/capture
-- POST /api/studio/import
+## Conversations
 
-Project selection is browser-local and read-only; navigation never rewrites shared Blob memory. A message endpoint first generates the response, then persists the user and assistant messages as one atomic exchange. Capture creates pending candidates. Pending memory is excluded from model context.
+- `POST /api/studio/sessions`
+- `GET /api/studio/sessions/:id`
+- `POST /api/studio/sessions/:id/messages`
+- `POST /api/studio/sessions/:id/capture`
+- `POST /api/studio/import`
 
-## Memory lifecycle
+A message exchange is stored atomically after the response is ready. The response includes `mode: "ai" | "local"`; local mode may include `fallbackReason` for calm, actionable recovery.
 
-- PATCH /api/studio/artifacts/:id
-- POST /api/studio/artifacts/:id/review
-- DELETE /api/studio/artifacts/:id
-- POST /api/studio/artifacts/restore
+## Memory
 
-Review body:
+- `PATCH /api/studio/artifacts/:id`
+- `POST /api/studio/artifacts/:id/review`
+- `DELETE /api/studio/artifacts/:id`
+- `POST /api/studio/artifacts/restore`
 
-~~~json
-{"action":"accept","supersedeIds":["memory_earlier"]}
-~~~
+Review accepts `accept`, `reject`, or `pending`. Accepted memory may include `supersedeIds`; earlier direction stays in history.
 
-Valid actions are accept, reject, and pending. Supersede IDs are optional and constrained to accepted, related memory in the same project. Accepting without IDs keeps the new memory alongside current context. Undo restores the prior review state and lineage.
+## Sources and search
 
-## Sources, search, and export
+- `POST /api/studio/sources`
+- `GET /api/studio/search?q=...&projectId=...`
 
-- POST /api/studio/sources
-- GET /api/studio/search?q=…&projectId=…
-- GET /api/studio/export
+Search returns grouped browser-ready results across projects, conversations, memory, sources, and history.
 
-## MCP
+## Concurrency
 
-POST /api/mcp accepts stateless MCP requests with a bearer token:
+Private Vercel Blob writes use ETags. A stale write returns a calm retry message instead of overwriting newer project memory.
 
-~~~http
-Authorization: Bearer YOUR_API_KEY
-~~~
+## Security boundary
 
-The reviewMemoryArtifact tool exposes the same optional supersedeIds semantics as the interface. Errors return JSON and the first-party interface never assumes a mutation succeeded.
+The personal build has no account layer. Keep the deployment private. Production AI credentials remain server-side and are never returned by the API or included in exports.

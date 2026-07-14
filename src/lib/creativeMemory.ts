@@ -218,7 +218,7 @@ class CreativeMemoryStore {
       artifacts:state.artifacts.filter(item=>item.projectId===project.id).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)),
       sources:state.sources.filter(item=>item.projectId===project.id).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)),
       events:state.events.filter(item=>item.projectId===project.id).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)),
-      aiConfigured:Boolean(process.env.NVIDIA_API_KEY && !process.env.NVIDIA_API_KEY.includes('MY_NVIDIA') && !process.env.NVIDIA_API_KEY.includes('YOUR_NVIDIA')),
+      aiConfigured:Boolean((process.env.AI_GATEWAY_API_KEY||process.env.VERCEL_OIDC_TOKEN)?.trim()),
       storageMode:creativeStorageMode()
     };
   }

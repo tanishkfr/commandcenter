@@ -1,17 +1,13 @@
-# Release quality gate
+﻿# Release quality gate
 
-## Automated gates
+A release is ready only when all of the following are true:
 
-- TypeScript has no diagnostics.
-- Every test passes, including fallback AI, extraction, Blob concurrency, MCP, interaction integrity, migration, supersession, and undo.
-- Client and server production bundles complete.
-- An isolated production API smoke test covers clean bootstrap, atomic conversation, local fallback, capture, search, project create/open/rename/delete/restore, reset, export, diagnostics, MCP authentication, and MCP initialization.
-- The repository contains no stale runtime, scratch script, secret, placeholder control, mojibake, conflict marker, or unintended lockfile.
+- `npm test` passes, including AI Gateway contract, prompt-specific offline replies, extraction, Blob concurrency, interaction integrity, migration, supersession, and undo.
+- `npm run lint` passes with no TypeScript errors.
+- `npm run build` produces the client and server bundles.
+- An isolated API smoke test covers clean bootstrap, distinct offline conversation responses, capture, search, project create/rename/delete/restore, reset, export, diagnostics, and storage recovery.
+- A production deployment returns JSON from `/api/health` and passes the in-product full connection check.
+- Every visible control has a working action, accessible label, keyboard path, and recoverable error state.
+- Search, project switching, reset, conversation, capture, memory review, undo, and export reach a complete conclusion.
 
-## Manual interface gate
-
-Test desktop and narrow mobile widths. Every visible control must complete a workflow. Verify keyboard order, focus visibility, dialog trapping and return, Escape, grouped search states, project switching and CRUD, retained message drafts, reset confirmation, the three capture choices, lineage and undo, connection troubleshooting, educational empty states, calm errors, reduced motion, and stable loading geometry.
-
-A broken primary workflow, silent data loss, inaccessible control, unprotected MCP mutation, fake functionality, failed build, or unverified migration blocks release.
-
-Automated correctness is not evidence of desirability. Research findings may only be claimed after the protocol in RESEARCH_PROTOCOL.md is completed.
+A broken primary workflow, silent data loss, inaccessible control, fake functionality, failed build, unverified migration, or a fallback presented as hosted AI blocks release.

@@ -11,7 +11,7 @@ Target: a 6–8 minute case-study read and a 75-second motion walkthrough.
 5. A new decision conflicts with an earlier direction.
 6. Keep alongside versus change direction.
 7. Current memory and earlier direction remain connected.
-8. One model across UI, API, storage, search, export, and MCP.
+8. One model across UI, API, storage, search, export, and living context.
 9. Test evidence plus participant findings when available.
 10. What failed, what remains hypothetical, and the next decision.
 
