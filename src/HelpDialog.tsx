@@ -53,7 +53,7 @@ export default function HelpDialog({onClose,onOpenSetup}:Props){
   return <motion.div className="modal-backdrop help-backdrop" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onMouseDown={onClose}>
     <motion.section ref={dialogRef} className="help-dialog" role="dialog" aria-modal="true" aria-label="Help and connection repair" tabIndex={-1} initial={{opacity:0,y:10,scale:.99}} animate={{opacity:1,y:0,scale:1}} exit={{opacity:0,y:6}} onMouseDown={event=>event.stopPropagation()}>
       <header className="help-header">
-        <div><p className="eyebrow">Help and connection repair</p><h2>See what is working.</h2><p>Verify storage and AI from this exact deployment, then follow the matching recovery path without guessing.</p></div>
+        <div><p className="eyebrow">Help and connection repair <span className="alpha-badge">Alpha</span></p><h2>See what is working.</h2><p>Remainder is in alpha testing. Verify storage and AI from this exact deployment, then follow the matching recovery path without guessing.</p></div>
         <button type="button" className="icon-button" onClick={onClose} aria-label="Close help"><X size={17}/></button>
       </header>
 

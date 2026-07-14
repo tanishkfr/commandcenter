@@ -27,7 +27,7 @@ export default function Onboarding({data,resetComplete=false,onClose}:Props){
   return <div className="onboarding-backdrop">
     <section ref={shellRef} className="onboarding-shell" role="dialog" aria-modal="true" aria-label="Set up Remainder">
       <aside className="onboarding-rail">
-        <div className="onboarding-brand"><BrandMark aria-label="Remainder"/><div><strong>Remainder</strong><small>Project memory setup</small></div></div>
+        <div className="onboarding-brand"><BrandMark aria-label="Remainder"/><div><strong>Remainder <span className="alpha-badge">Alpha</span></strong><small>Project memory setup</small></div></div>
         <nav>{steps.map((item,index)=>{const Icon=item.icon;return <button type="button" key={item.label} className={index===step?'active':index<step?'complete':''} onClick={()=>setStep(index)} disabled={index>step} aria-current={index===step?'step':undefined}><span>{index<step?<Check size={12}/>:<Icon size={13}/>}</span><em>{item.label}</em></button>})}</nav>
         <div className="onboarding-privacy"><ShieldCheck size={14}/><p><strong>{status?.runtime==='vercel'?'Private cloud':'Local by default'}</strong>{status?.runtime==='vercel'?'Project memory is stored in your private Vercel Blob. AI authentication is managed by the deployment.':'Your projects and memory remain on this computer.'}</p></div>
       </aside>
@@ -58,7 +58,7 @@ export default function Onboarding({data,resetComplete=false,onClose}:Props){
 }
 
 function Welcome({resetComplete}:{resetComplete:boolean}){
-  return <div className="onboarding-copy welcome-copy"><p className="eyebrow">Welcome to Remainder</p><h1>Creative work<br/>should remember itself.</h1><p className="onboarding-lede">Think naturally. When something changes the work, keep it. Remainder carries decisions, questions, and unfinished threads forward with the project.</p>
+  return <div className="onboarding-copy welcome-copy"><p className="eyebrow">Welcome to Remainder <span className="alpha-badge">Alpha</span></p><h1>Creative work<br/>should remember itself.</h1><p className="onboarding-lede">Think naturally. When something changes the work, keep it. Remainder carries decisions, questions, and unfinished threads forward with the project.</p><div className="alpha-notice" role="note"><strong>Currently in alpha testing</strong><p>Core project workflows are ready to use, but connections and edge cases are still being refined. Export important work regularly.</p></div>
     {resetComplete&&<div className="reset-success-banner" role="status"><CheckCircle2 size={17}/><div><strong>The workspace is clear.</strong><p>One blank project is ready. Deployment-level storage and AI settings were left unchanged.</p></div></div>}
     <div className="memory-loop"><div><span><MessageCircleMore size={18}/></span><strong>Have a conversation</strong><small>Think naturally. No filing system required.</small></div><ArrowRight size={16}/><div><span><BrandMark compact/></span><strong>Keep what matters</strong><small>Review decisions, ideas, and questions.</small></div><ArrowRight size={16}/><div><span><Layers3 size={18}/></span><strong>Build project memory</strong><small>Search what changed, when, and why.</small></div></div>
   </div>;
