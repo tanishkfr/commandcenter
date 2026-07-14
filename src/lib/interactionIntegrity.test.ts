@@ -4,6 +4,7 @@ import * as ts from 'typescript';
 
 const app=fs.readFileSync(new URL('../App.tsx',import.meta.url),'utf8');
 const onboarding=fs.readFileSync(new URL('../Onboarding.tsx',import.meta.url),'utf8');
+const help=fs.readFileSync(new URL('../HelpDialog.tsx',import.meta.url),'utf8');
 const css=fs.readFileSync(new URL('../index.css',import.meta.url),'utf8');
 const document=fs.readFileSync(new URL('../../index.html',import.meta.url),'utf8');
 
@@ -87,6 +88,11 @@ describe('visible interaction integrity',()=>{
     expect(onboarding).toContain("http://localhost:3000/api/mcp'");
     expect(onboarding).toContain("aria-current={index===step?'step':undefined}");
     expect(onboarding).toContain('remainder-onboarding-v2');
+    expect(onboarding).toContain('The workspace is clear.');
+    expect(help).toContain('aria-modal');
+    expect(help).toContain('BLOB_READ_WRITE_TOKEN');
+    expect(help).toContain('NVIDIA_TIMEOUT_MS');
+    expect(help).toContain('PUBLIC_APP_URL');
     expect(app).toContain("document.querySelector('[aria-modal=\"true\"]')");
     expect(app).toContain("matchMedia?.('(prefers-reduced-motion: reduce)')");
     expect(app).toContain('if(previous?.isConnected)previous.focus()');
@@ -95,6 +101,7 @@ describe('visible interaction integrity',()=>{
   it('keeps every visible button connected to an action',()=>{
     expect(buttonsWithoutBehavior(app,'App.tsx')).toEqual([]);
     expect(buttonsWithoutBehavior(onboarding,'Onboarding.tsx')).toEqual([]);
+    expect(buttonsWithoutBehavior(help,'HelpDialog.tsx')).toEqual([]);
   });
 
   it('enforces the legible type scale and mobile search affordance',()=>{

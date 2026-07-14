@@ -73,29 +73,52 @@ describe('Vercel Blob creative memory storage',()=>{
     expect(blobMocks.put).not.toHaveBeenCalled();
   });
 
-  it('retries conditional Blob writes beyond the previous three-attempt limit',async()=>{
+  it('returns the freshly written workspace after reset without a second Blob read',async()=>{
     const timestamp='2026-01-01T00:00:00.000Z';
-    const state={version:4,activeProjectId:'cloud',projects:[{id:'cloud',name:'Cloud project',description:'',color:'#796bb4',createdAt:timestamp,updatedAt:timestamp}],sessions:[],artifacts:[],sources:[],events:[]};
-    const conflict=Object.assign(new Error('Precondition failed: ETag mismatch.'),{name:'BlobPreconditionFailedError'});
-    blobMocks.get.mockImplementation(async()=>({statusCode:200,stream:new Response(JSON.stringify(state)).body,blob:{etag:'concurrent-etag'}}));
-    blobMocks.put.mockRejectedValueOnce(conflict).mockRejectedValueOnce(conflict).mockRejectedValueOnce(conflict).mockResolvedValue({etag:'saved-etag'});
+    const stale={version:4,activeProjectId:'old',projects:[{id:'old',name:'Old project',description:'',color:'#796bb4',createdAt:timestamp,updatedAt:timestamp}],sessions:[],artifacts:[],sources:[],events:[]};
+    blobMocks.get.mockResolvedValue({statusCode:200,stream:new Response(JSON.stringify(stale)).body,blob:{etag:'stale-etag'}});
+    blobMocks.put.mockResolvedValue({etag:'reset-etag'});
     const {creativeMemoryStore}=await import('./creativeMemory.js');
-    const created=await creativeMemoryStore.createProject({name:'Survives contention'});
-    expect(created.project.name).toBe('Survives contention');
-    expect(blobMocks.put).toHaveBeenCalledTimes(4);
-    const saved=JSON.parse(blobMocks.put.mock.calls[3][1] as string);
-    expect(saved.projects).toEqual(expect.arrayContaining([expect.objectContaining({name:'Survives contention'})]));
+    const bootstrap=await creativeMemoryStore.resetAndBootstrap();
+    expect(bootstrap.projects).toHaveLength(1);
+    expect(bootstrap.project.name).toBe('My first project');
+    expect(bootstrap.activeSession?.messages).toEqual([]);
+    expect(blobMocks.get).toHaveBeenCalledTimes(1);
+  });
+  it('checks cloud write access without changing project memory',async()=>{
+    blobMocks.put.mockResolvedValue({etag:'diagnostic-etag'});
+    const {creativeMemoryStore}=await import('./creativeMemory.js');
+    await expect(creativeMemoryStore.verifyStorageWrite()).resolves.toBe(true);
+    expect(blobMocks.get).not.toHaveBeenCalled();
+    expect(blobMocks.put).toHaveBeenCalledWith('creative-memory/connection-check.json',expect.any(String),expect.objectContaining({access:'private',allowOverwrite:true}));
+  });
+  it('writes immediately without a cached ETag blocking the next action',async()=>{
+    const timestamp='2026-01-01T00:00:00.000Z';
+    let stored:any={version:4,activeProjectId:'cloud',projects:[{id:'cloud',name:'Cloud project',description:'',color:'#796bb4',createdAt:timestamp,updatedAt:timestamp}],sessions:[],artifacts:[],sources:[],events:[]};
+    blobMocks.get.mockImplementation(async()=>({statusCode:200,stream:new Response(JSON.stringify(stored)).body,blob:{etag:'cached-etag'}}));
+    blobMocks.put.mockImplementation(async(_pathname:string,body:string)=>{stored=JSON.parse(body);return{etag:'next-etag'}});
+    const {creativeMemoryStore}=await import('./creativeMemory.js');
+    const first=await creativeMemoryStore.createProject({name:'First immediate write'});
+    await creativeMemoryStore.createSession(first.project.id,'Second immediate write');
+    expect(blobMocks.put).toHaveBeenCalledTimes(2);
+    for(const call of blobMocks.put.mock.calls){
+      expect(call[2]).toEqual(expect.objectContaining({access:'private',allowOverwrite:true}));
+      expect(call[2]).not.toHaveProperty('ifMatch');
+    }
+    expect(stored.projects).toEqual(expect.arrayContaining([expect.objectContaining({name:'First immediate write'})]));
+    expect(stored.sessions).toEqual(expect.arrayContaining([expect.objectContaining({title:'Second immediate write'})]));
   });
 
-  it('never exposes a raw ETag mismatch after write retries are exhausted',async()=>{
+  it('serializes simultaneous personal-workspace writes in one running instance',async()=>{
     const timestamp='2026-01-01T00:00:00.000Z';
-    const state={version:4,activeProjectId:'cloud',projects:[{id:'cloud',name:'Cloud project',description:'',color:'#796bb4',createdAt:timestamp,updatedAt:timestamp}],sessions:[],artifacts:[],sources:[],events:[]};
-    const conflict=Object.assign(new Error('Precondition failed: ETag mismatch.'),{name:'BlobPreconditionFailedError'});
-    blobMocks.get.mockImplementation(async()=>({statusCode:200,stream:new Response(JSON.stringify(state)).body,blob:{etag:'busy-etag'}}));
-    blobMocks.put.mockRejectedValue(conflict);
+    let stored:any={version:4,activeProjectId:'cloud',projects:[{id:'cloud',name:'Cloud project',description:'',color:'#796bb4',createdAt:timestamp,updatedAt:timestamp}],sessions:[],artifacts:[],sources:[],events:[]};
+    blobMocks.get.mockImplementation(async()=>({statusCode:200,stream:new Response(JSON.stringify(stored)).body,blob:{etag:'cached-etag'}}));
+    blobMocks.put.mockImplementation(async(_pathname:string,body:string)=>{stored=JSON.parse(body);return{etag:'next-etag'}});
     const {creativeMemoryStore}=await import('./creativeMemory.js');
-    await expect(creativeMemoryStore.createProject({name:'Busy project'})).rejects.toThrow('Project memory changed while saving. Please try again.');
-    expect(blobMocks.put).toHaveBeenCalledTimes(7);
+    await Promise.all([
+      creativeMemoryStore.createProject({name:'Queued one'}),
+      creativeMemoryStore.createProject({name:'Queued two'})
+    ]);
+    expect(stored.projects.map((project:any)=>project.name)).toEqual(expect.arrayContaining(['Queued one','Queued two']));
   });
-
 });

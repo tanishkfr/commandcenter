@@ -7,6 +7,16 @@ type NimResponse={choices?:Array<{message?:{content?:string}}> ;error?:{message?
 const DEFAULT_NIM_BASE_URL='https://integrate.api.nvidia.com/v1';
 export const DEFAULT_NIM_MODEL='meta/llama-3.3-70b-instruct';
 const configured=()=>{const key=process.env.NVIDIA_API_KEY||'';return Boolean(key&&!key.includes('MY_NVIDIA')&&!key.includes('YOUR_NVIDIA'))};
+const nvidiaTimeoutMs=()=>{const value=Number(process.env.NVIDIA_TIMEOUT_MS||30000);return Number.isFinite(value)?Math.min(50000,Math.max(3000,value)):30000};
+
+export function describeNvidiaError(error:unknown){
+  const raw=error instanceof Error?error.message:String(error||'');
+  if(/timeout|timed out|aborted/i.test(raw)||(error instanceof Error&&error.name==='TimeoutError'))return 'NVIDIA NIM timed out after '+Math.round(nvidiaTimeoutMs()/1000)+' seconds. Confirm the model, rotate the NVIDIA API key if needed, then redeploy.';
+  if(/401|unauthorized|invalid api key|authentication/i.test(raw))return 'NVIDIA rejected this API key. Create a fresh key at build.nvidia.com, update NVIDIA_API_KEY, then redeploy.';
+  if(/404|model.*not found|unknown model/i.test(raw))return 'NVIDIA could not find this model. Use meta/llama-3.3-70b-instruct for NVIDIA_MODEL, then redeploy.';
+  if(/429|rate limit|too many requests/i.test(raw))return 'NVIDIA is rate limiting this key. Wait a minute, then run the live check again.';
+  return raw||'NVIDIA NIM could not be reached. Check the key, model, and deployment environment, then retry.';
+}
 
 async function nimChat(options:{apiKey:string;model:string;messages:NimMessage[];temperature?:number;maxTokens?:number}){
   const baseUrl=(process.env.NVIDIA_BASE_URL||DEFAULT_NIM_BASE_URL).replace(/\/+$/,'');
@@ -14,7 +24,7 @@ async function nimChat(options:{apiKey:string;model:string;messages:NimMessage[]
     method:'POST',
     headers:{Authorization:'Bearer '+options.apiKey,'Content-Type':'application/json',Accept:'application/json'},
     body:JSON.stringify({model:options.model,messages:options.messages,temperature:options.temperature??.35,top_p:.9,max_tokens:options.maxTokens??800,stream:false}),
-    signal:AbortSignal.timeout(Math.max(3000,Number(process.env.NVIDIA_TIMEOUT_MS||12000)))
+    signal:AbortSignal.timeout(nvidiaTimeoutMs())
   });
   const payload=await response.json().catch(()=>({})) as NimResponse;
   if(!response.ok)throw new Error('NVIDIA NIM request failed: '+(payload.error?.message||response.statusText||'Connection failed'));
@@ -29,7 +39,7 @@ function relevant(message:string,artifacts:MemoryArtifact[]){
     .filter(item=>item.score>0).sort((a,b)=>b.score-a.score).slice(0,4).map(item=>item.artifact);
 }
 
-function localReply(context:Context,message:string){
+function localReply(context:Context,message:string,fallbackReason?:string){
   const related=relevant(message,context.artifacts);const lower=message.toLowerCase();
   let opening='There is a useful tension in that.';
   if(/\bwhy\b/.test(lower))opening='The rationale seems to be less about the visible solution and more about the behavior it creates.';
@@ -38,12 +48,12 @@ function localReply(context:Context,message:string){
   else if(/test|prototype|experiment/.test(lower))opening='A small prototype can answer this without overcommitting.';
   const memory=related.length?' This connects with “'+related[0].title+'.”':'';
   const ending=/\?$/.test(message.trim())?' Start with the smallest behavior that would prove or disprove the idea, then capture what changed.':' The next useful move is to name the assumption underneath it and design one quick way to challenge it.';
-  return{text:opening+memory+ending,citedArtifactIds:related.map(item=>item.id),mode:'local' as const};
+  return{text:opening+memory+ending,citedArtifactIds:related.map(item=>item.id),mode:'local' as const,...(fallbackReason?{fallbackReason}:{})};
 }
 
 export async function generateStudioReply(context:Context,message:string){
   const related=relevant(message,context.artifacts);
-  if(!configured())return localReply(context,message);
+  if(!configured())return localReply(context,message,'NVIDIA NIM is not configured, so local intelligence answered instead.');
   try{
     const prompt=[
       'You are Remainder, a calm creative collaborator for an interaction designer.',
@@ -65,7 +75,7 @@ export async function generateStudioReply(context:Context,message:string){
       maxTokens:360
     });
     return{text,citedArtifactIds:related.map(item=>item.id),mode:'ai' as const};
-  }catch(error){console.error('Remainder AI failed; using local collaborator:',error);return localReply(context,message)}
+  }catch(error){console.error('Remainder AI failed; using local collaborator:',error);return localReply(context,message,describeNvidiaError(error))}
 }
 
 const allowed:ArtifactType[]=['decision','principle','question','idea','experiment','reference','risk','action','abandoned'];

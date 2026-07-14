@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { testNvidiaConnection } from './creativeAI';
+import { describeNvidiaError, testNvidiaConnection } from './creativeAI';
 
 describe('NVIDIA NIM connection',()=>{
   afterEach(()=>{vi.unstubAllGlobals();delete process.env.NVIDIA_BASE_URL});
@@ -22,6 +22,10 @@ describe('NVIDIA NIM connection',()=>{
     });
   });
 
+  it('turns a hosted timeout into an actionable deployment instruction',()=>{
+    vi.stubEnv('NVIDIA_TIMEOUT_MS','30000');
+    expect(describeNvidiaError(new Error('The operation was aborted due to timeout'))).toBe('NVIDIA NIM timed out after 30 seconds. Confirm the model, rotate the NVIDIA API key if needed, then redeploy.');
+  });
   it('surfaces NVIDIA API errors without exposing the key',async()=>{
     vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response(JSON.stringify({
       error:{message:'Invalid API key'}
