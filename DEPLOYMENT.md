@@ -1,43 +1,50 @@
-# Deploying Remainder on Vercel
+﻿# Vercel deployment
 
-The hosted product uses a Vercel Function for the API and a private Vercel Blob store for durable personal memory. Local development continues to use `.memory/studio.json`.
+Remainder deploys as one Vite client plus an Express serverless entry point.
 
-## One-time Vercel setup
+## 1. Import the repository
 
-1. Import this repository into Vercel and keep the detected **Vite** framework settings.
-2. In the project dashboard, open **Storage**, create a **Blob** store, choose **Private**, and connect it to this project.
-3. Add these environment variables for Production and Preview:
+Import `tanishkfr/commandcenter` into Vercel. Keep the repository root as the project root and use the existing build configuration.
 
-   - `NVIDIA_API_KEY` — optional; Remainder still works in local-intelligence mode without it.
-   - `NVIDIA_MODEL` — optional; defaults to `meta/llama-3.3-70b-instruct`.
-   - `API_KEY` — a long random bearer token protecting the stateless `/api/mcp` endpoint.
-   - `PUBLIC_APP_URL` — the public `https://...` URL of this deployment.
+## 2. Connect private storage
 
-4. Redeploy after connecting Blob or changing environment variables.
-5. If visitors should open the app without signing into Vercel, disable Deployment Protection for the intended environment in **Settings → Deployment Protection**.
+In the Vercel project, open **Storage** and create or connect a **Private Vercel Blob** store. Vercel injects `BLOB_READ_WRITE_TOKEN` automatically. Do not paste a Blob URL as this value.
 
-Vercel injects the Blob credentials when the store is connected. Do not commit those credentials or your NVIDIA key.
+## 3. Use Vercel AI Gateway
 
-## Verify the deployment
+Production does not need a copied provider secret. Vercel injects `VERCEL_OIDC_TOKEN` automatically, and Remainder uses that deployment identity to call AI Gateway.
 
-Open `/api/health` on the deployed URL. A healthy deployment returns JSON similar to:
+Optional Production variables:
+
+- `AI_MODEL` — defaults to `google/gemini-2.5-flash-lite`.
+- `AI_TIMEOUT_MS` — defaults to `12000`; accepted range is 3000–25000.
+
+For local development outside Vercel only, use `AI_GATEWAY_API_KEY` in `.env`.
+
+AI Gateway requires available credits for the Vercel team that owns the deployment. Review usage at `https://vercel.com/ai-gateway` if the live check reports a budget or credit error.
+
+## 4. Redeploy
+
+Storage and environment changes apply only to new deployments. Redeploy the latest Production commit after connecting Blob or changing the model.
+
+## 5. Verify
+
+Open:
+
+```text
+https://YOUR-DOMAIN/api/health
+```
+
+It should return JSON containing:
 
 ```json
 {"ok":true,"runtime":"vercel","storage":"vercel-blob"}
 ```
 
-Then open the root URL. If Blob is not connected, Remainder shows a repair checklist instead of a blank error screen. Open **Settings -> Connection health** and choose **Run check** to verify Blob access, make a live NIM request, and confirm the MCP bearer credential is present.
+Then open the app, go to **Settings → Connection health**, and choose **Run check**. This performs a real Blob write and a live AI Gateway request.
 
-Use the setup guide to copy the MCP configuration. The client must use `/api/mcp` and send `Authorization: Bearer YOUR_API_KEY`; modern clients negotiate the required JSON and event-stream response types automatically.
+If AI is unavailable, the composer remains functional with prompt-specific offline guidance. Open **Help → AI** for the exact message-specific recovery path.
 
-On Vercel, **Begin again** resets Blob project memory but deliberately leaves environment variables intact. Change or remove those variables in Vercel Project Settings, then redeploy.
+## Privacy boundary
 
-## Local development
-
-```powershell
-npm install
-Copy-Item .env.example .env
-npm run dev
-```
-
-Open `http://localhost:3000`. Local data remains in the ignored `.memory/studio.json` file.
+This is a personal build without authentication. Treat the deployment URL as private. Do not use it as a multi-user public service until authentication and per-user authorization are added.

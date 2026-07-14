@@ -1,35 +1,40 @@
 import type { ArtifactType, ExtractedArtifact, MemoryArtifact, StudioMessage, StudioProject, StudioSession, StudioSource } from './creativeMemory.js';
 
 type Context={project:StudioProject;session:StudioSession;artifacts:MemoryArtifact[];sources:StudioSource[]};
-type NimMessage={role:'system'|'user'|'assistant';content:string};
-type NimResponse={choices?:Array<{message?:{content?:string}}> ;error?:{message?:string}};
+type GatewayMessage={role:'system'|'user'|'assistant';content:string};
+type GatewayResponse={choices?:Array<{message?:{content?:string}}> ;error?:{message?:string}};
 
-const DEFAULT_NIM_BASE_URL='https://integrate.api.nvidia.com/v1';
-export const DEFAULT_NIM_MODEL='meta/llama-3.3-70b-instruct';
-const configured=()=>{const key=process.env.NVIDIA_API_KEY||'';return Boolean(key&&!key.includes('MY_NVIDIA')&&!key.includes('YOUR_NVIDIA'))};
-const nvidiaTimeoutMs=()=>{const value=Number(process.env.NVIDIA_TIMEOUT_MS||30000);return Number.isFinite(value)?Math.min(50000,Math.max(3000,value)):30000};
+const DEFAULT_GATEWAY_BASE_URL='https://ai-gateway.vercel.sh/v1';
+export const DEFAULT_AI_MODEL='google/gemini-2.5-flash-lite';
 
-export function describeNvidiaError(error:unknown){
+const meaningful=(value:string|undefined)=>Boolean(value?.trim()&&!/YOUR_|MY_|change-me/i.test(value));
+const credential=(override?:string)=>override?.trim()||process.env.AI_GATEWAY_API_KEY?.trim()||process.env.VERCEL_OIDC_TOKEN?.trim()||'';
+export const aiConfigured=()=>meaningful(credential());
+const gatewayTimeoutMs=()=>{const value=Number(process.env.AI_TIMEOUT_MS||12000);return Number.isFinite(value)?Math.min(25000,Math.max(3000,value)):12000};
+
+export function describeGatewayError(error:unknown){
   const raw=error instanceof Error?error.message:String(error||'');
-  if(/timeout|timed out|aborted/i.test(raw)||(error instanceof Error&&error.name==='TimeoutError'))return 'NVIDIA NIM timed out after '+Math.round(nvidiaTimeoutMs()/1000)+' seconds. Confirm the model, rotate the NVIDIA API key if needed, then redeploy.';
-  if(/401|unauthorized|invalid api key|authentication/i.test(raw))return 'NVIDIA rejected this API key. Create a fresh key at build.nvidia.com, update NVIDIA_API_KEY, then redeploy.';
-  if(/404|model.*not found|unknown model/i.test(raw))return 'NVIDIA could not find this model. Use meta/llama-3.3-70b-instruct for NVIDIA_MODEL, then redeploy.';
-  if(/429|rate limit|too many requests/i.test(raw))return 'NVIDIA is rate limiting this key. Wait a minute, then run the live check again.';
-  return raw||'NVIDIA NIM could not be reached. Check the key, model, and deployment environment, then retry.';
+  if(/timeout|timed out|aborted/i.test(raw)||(error instanceof Error&&error.name==='TimeoutError'))return 'Vercel AI Gateway did not respond within '+Math.round(gatewayTimeoutMs()/1000)+' seconds. Remainder used offline guidance; retry or open Help → AI.';
+  if(/401|403|unauthorized|forbidden|authentication|oidc/i.test(raw))return 'Vercel AI Gateway could not verify this deployment. Redeploy on Vercel, or add AI_GATEWAY_API_KEY for local development, then run the check again.';
+  if(/402|429|credits|budget|rate limit|too many requests|payment/i.test(raw))return 'Vercel AI Gateway has no available credits or is rate limited. Check AI Gateway usage in Vercel, then retry.';
+  if(/404|model.*not found|unknown model/i.test(raw))return 'The selected AI model is unavailable. Remove AI_MODEL or set it to '+DEFAULT_AI_MODEL+', then redeploy.';
+  return raw||'Vercel AI Gateway could not be reached. Remainder used offline guidance; open Help → AI for the exact recovery steps.';
 }
 
-async function nimChat(options:{apiKey:string;model:string;messages:NimMessage[];temperature?:number;maxTokens?:number}){
-  const baseUrl=(process.env.NVIDIA_BASE_URL||DEFAULT_NIM_BASE_URL).replace(/\/+$/,'');
+async function gatewayChat(options:{apiKey?:string;model?:string;messages:GatewayMessage[];temperature?:number;maxTokens?:number}){
+  const apiKey=credential(options.apiKey);
+  if(!meaningful(apiKey))throw new Error('AI Gateway authentication is not available.');
+  const baseUrl=(process.env.AI_GATEWAY_BASE_URL||DEFAULT_GATEWAY_BASE_URL).replace(/\/+$/,'');
   const response=await fetch(baseUrl+'/chat/completions',{
     method:'POST',
-    headers:{Authorization:'Bearer '+options.apiKey,'Content-Type':'application/json',Accept:'application/json'},
-    body:JSON.stringify({model:options.model,messages:options.messages,temperature:options.temperature??.35,top_p:.9,max_tokens:options.maxTokens??800,stream:false}),
-    signal:AbortSignal.timeout(nvidiaTimeoutMs())
+    headers:{Authorization:'Bearer '+apiKey,'Content-Type':'application/json',Accept:'application/json'},
+    body:JSON.stringify({model:options.model||process.env.AI_MODEL||DEFAULT_AI_MODEL,messages:options.messages,temperature:options.temperature??.35,max_tokens:options.maxTokens??800,stream:false}),
+    signal:AbortSignal.timeout(gatewayTimeoutMs())
   });
-  const payload=await response.json().catch(()=>({})) as NimResponse;
-  if(!response.ok)throw new Error('NVIDIA NIM request failed: '+(payload.error?.message||response.statusText||'Connection failed'));
+  const payload=await response.json().catch(()=>({})) as GatewayResponse;
+  if(!response.ok)throw new Error('AI Gateway request failed ('+response.status+'): '+(payload.error?.message||response.statusText||'Connection failed'));
   const content=payload.choices?.[0]?.message?.content?.trim();
-  if(!content)throw new Error('NVIDIA NIM returned an empty response.');
+  if(!content)throw new Error('AI Gateway returned an empty response.');
   return content;
 }
 
@@ -39,43 +44,68 @@ function relevant(message:string,artifacts:MemoryArtifact[]){
     .filter(item=>item.score>0).sort((a,b)=>b.score-a.score).slice(0,4).map(item=>item.artifact);
 }
 
+function quotedSubject(message:string){
+  const clean=message.replace(/\s+/g,' ').trim().replace(/^remainder[,\s:-]*/i,'');
+  const short=clean.length>126?clean.slice(0,123).replace(/\s+\S*$/,'')+'…':clean;
+  return short||'this direction';
+}
+
 function localReply(context:Context,message:string,fallbackReason?:string){
-  const related=relevant(message,context.artifacts);const lower=message.toLowerCase();
-  let opening='There is a useful tension in that.';
-  if(/\bwhy\b/.test(lower))opening='The rationale seems to be less about the visible solution and more about the behavior it creates.';
-  else if(/\bhow\b/.test(lower))opening='I would make the transition observable before deciding on the final form.';
-  else if(/what if|could|maybe/.test(lower))opening='That opens a promising direction.';
-  else if(/test|prototype|experiment/.test(lower))opening='A small prototype can answer this without overcommitting.';
-  const memory=related.length?' This connects with “'+related[0].title+'.”':'';
-  const ending=/\?$/.test(message.trim())?' Start with the smallest behavior that would prove or disprove the idea, then capture what changed.':' The next useful move is to name the assumption underneath it and design one quick way to challenge it.';
-  return{text:opening+memory+ending,citedArtifactIds:related.map(item=>item.id),mode:'local' as const,...(fallbackReason?{fallbackReason}:{})};
+  const related=relevant(message,context.artifacts);const lower=message.toLowerCase();const subject=quotedSubject(message);
+  let reflection:string;let nextMove:string;
+  if(/\b(vs\.?|versus|compare|between|trade[ -]?off|either)\b/.test(lower)){
+    reflection='You are weighing “'+subject+'.” The useful tension is not which option sounds better, but which criterion the project cannot afford to compromise.';
+    nextMove='Write that criterion in one sentence, score both directions against it, then prototype the weaker option just enough to learn what you would be giving up.';
+  }else if(/\b(risk|concern|worried|failure|break|problem|unclear|confus)/.test(lower)){
+    reflection='The concern in “'+subject+'” is worth making concrete before it becomes a vague reason to stop.';
+    nextMove='Name the failure you could actually observe, the person who would feel it first, and the smallest test that would expose it.';
+  }else if(/\b(test|prototype|experiment|validate|research)\b/.test(lower)){
+    reflection='“'+subject+'” sounds testable without committing the whole project.';
+    nextMove='Choose one behavior, one audience, and one signal that would change your mind. Keep the test deliberately smaller than the solution.';
+  }else if(/\b(decide|decision|choose|commit|ship|launch)\b/.test(lower)){
+    reflection='“'+subject+'” is becoming a decision, so the reasoning matters as much as the outcome.';
+    nextMove='State what you are choosing, what you are explicitly not choosing, and the evidence that would justify revisiting it later.';
+  }else if(/\bwhy\b/.test(lower)){
+    reflection='The deeper question in “'+subject+'” is what behavior or belief the visible choice is meant to create.';
+    nextMove='Separate the intended effect from the current solution; then ask whether a simpler form could produce the same effect.';
+  }else if(/\bhow\b/.test(lower)){
+    reflection='“'+subject+'” becomes easier to approach when the transition is visible instead of treated as one large implementation.';
+    nextMove='Describe the first observable state, the next state, and the evidence that should move the work between them.';
+  }else if(/\b(what if|could|maybe|idea|imagine|explore)\b/.test(lower)){
+    reflection='“'+subject+'” opens a direction with enough tension to explore, but not enough evidence to harden into a feature yet.';
+    nextMove='Sketch the smallest version, identify the assumption it depends on, and decide what result would make you keep or abandon it.';
+  }else if(message.trim().endsWith('?')){
+    reflection='The question “'+subject+'” contains a decision the project has not made explicit yet.';
+    nextMove='Answer it provisionally, list the assumption behind that answer, and test the assumption rather than debating the whole question.';
+  }else{
+    reflection='I am hearing “'+subject+'” as a thread that may shape '+context.project.name+', but its consequence is not explicit yet.';
+    nextMove='Finish this sentence: “If this is true, the work should change by…” Then choose one small action that makes that change observable.';
+  }
+  const memory=related.length?' This connects to “'+related[0].title+'” in project memory.':' No existing memory matches it yet, so this is a new thread.';
+  return{text:reflection+memory+' '+nextMove,citedArtifactIds:related.map(item=>item.id),mode:'local' as const,...(fallbackReason?{fallbackReason}:{})};
 }
 
 export async function generateStudioReply(context:Context,message:string){
   const related=relevant(message,context.artifacts);
-  if(!configured())return localReply(context,message,'NVIDIA NIM is not configured, so local intelligence answered instead.');
+  if(!aiConfigured())return localReply(context,message,'AI Gateway is not available in this runtime, so Remainder used prompt-specific offline guidance. Open Help → AI to connect hosted responses.');
   try{
     const prompt=[
-      'You are Remainder, a calm creative collaborator for an interaction designer.',
-      'Think with the designer, surface tension, and suggest one concrete next move. Keep the response below 140 words.',
       'Project: '+context.project.name+' — '+context.project.description,
       'Known memory:\n'+context.artifacts.slice(-15).map(a=>'['+a.id+'] '+a.type+': '+a.title+' — '+a.body).join('\n'),
       'Sources:\n'+context.sources.slice(-8).map(s=>s.title+' '+s.url+' '+s.note).join('\n'),
       'Recent conversation:\n'+context.session.messages.slice(-12).map(m=>(m.role==='user'?'Designer':'Remainder')+': '+m.content).join('\n'),
       'Designer: '+message
     ].join('\n\n');
-    const text=await nimChat({
-      apiKey:process.env.NVIDIA_API_KEY||'',
-      model:process.env.NVIDIA_MODEL||DEFAULT_NIM_MODEL,
+    const text=await gatewayChat({
       messages:[
-        {role:'system',content:'You are Remainder, a calm creative collaborator for an interaction designer. Think with the designer, surface tension, and suggest one concrete next move. Keep the response below 140 words.'},
+        {role:'system',content:'You are Remainder, a calm creative collaborator for an interaction designer. Respond directly to the specific prompt, use relevant project context, surface one meaningful tension, and suggest one concrete next move. Never reuse a stock response. Stay below 160 words.'},
         {role:'user',content:prompt}
       ],
       temperature:.45,
-      maxTokens:360
+      maxTokens:420
     });
     return{text,citedArtifactIds:related.map(item=>item.id),mode:'ai' as const};
-  }catch(error){console.error('Remainder AI failed; using local collaborator:',error);return localReply(context,message,describeNvidiaError(error))}
+  }catch(error){console.error('Remainder AI Gateway failed; using offline guidance:',error);return localReply(context,message,describeGatewayError(error))}
 }
 
 const allowed:ArtifactType[]=['decision','principle','question','idea','experiment','reference','risk','action','abandoned'];
@@ -107,7 +137,7 @@ function heuristicCapture(messages:StudioMessage[]):ExtractedArtifact[]{
 }
 
 export async function extractSessionMemory(context:Context):Promise<{artifacts:ExtractedArtifact[];mode:'ai'|'local'}>{
-  if(!configured())return{artifacts:heuristicCapture(context.session.messages),mode:'local'};
+  if(!aiConfigured())return{artifacts:heuristicCapture(context.session.messages),mode:'local'};
   try{
     const prompt=[
       'Extract durable creative project memory from this design conversation.',
@@ -116,9 +146,7 @@ export async function extractSessionMemory(context:Context):Promise<{artifacts:E
       'Existing memory:\n'+context.artifacts.map(a=>a.type+': '+a.title).join('\n'),
       'Conversation:\n'+context.session.messages.map(m=>'['+m.id+'] '+(m.role==='user'?'Designer':'Remainder')+': '+m.content).join('\n')
     ].join('\n\n');
-    const content=await nimChat({
-      apiKey:process.env.NVIDIA_API_KEY||'',
-      model:process.env.NVIDIA_MODEL||DEFAULT_NIM_MODEL,
+    const content=await gatewayChat({
       messages:[
         {role:'system',content:'You extract structured creative project memory. Output JSON only, with no markdown or commentary.'},
         {role:'user',content:prompt}
@@ -127,24 +155,17 @@ export async function extractSessionMemory(context:Context):Promise<{artifacts:E
       maxTokens:1200
     });
     const start=content.indexOf('{');const end=content.lastIndexOf('}');
-    if(start<0||end<=start)throw new Error('NVIDIA NIM did not return JSON.');
+    if(start<0||end<=start)throw new Error('AI Gateway did not return JSON.');
     const parsed=JSON.parse(content.slice(start,end+1)) as {artifacts?:unknown[]};
     const artifacts=(parsed.artifacts||[]).filter((item):item is any=>Boolean(item&&typeof item==='object'&&isType((item as any).type)&&typeof(item as any).title==='string')).map(item=>({
       type:item.type,title:item.title,body:typeof item.body==='string'?item.body:'',confidence:typeof item.confidence==='number'?Math.min(1,Math.max(0,item.confidence)):.75,
       sourceMessageIds:Array.isArray(item.sourceMessageIds)?item.sourceMessageIds.filter((value:unknown)=>typeof value==='string'):[],tags:Array.isArray(item.tags)?item.tags.filter((value:unknown)=>typeof value==='string'):[]
     }));
     return{artifacts:artifacts.length?artifacts:heuristicCapture(context.session.messages),mode:artifacts.length?'ai':'local'};
-  }catch(error){console.error('Memory extraction failed; using local extraction:',error);return{artifacts:heuristicCapture(context.session.messages),mode:'local'}}
+  }catch(error){console.error('Memory extraction failed; using local extraction:',error);return{artifacts:heuristicCapture(context.session.messages),mode:'local'};}
 }
 
-
-export async function testNvidiaConnection(apiKey:string,model:string){
-  await nimChat({
-    apiKey,
-    model:model||DEFAULT_NIM_MODEL,
-    messages:[{role:'user',content:'Reply with exactly CONNECTED.'}],
-    temperature:0,
-    maxTokens:16
-  });
+export async function testGatewayConnection(apiKey?:string,model?:string){
+  await gatewayChat({apiKey,model:model||process.env.AI_MODEL||DEFAULT_AI_MODEL,messages:[{role:'user',content:'Reply with exactly CONNECTED.'}],temperature:0,maxTokens:16});
   return true;
 }

@@ -1,15 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowUpRight, Check, CircleHelp, Copy, Database, ExternalLink, KeyRound, Loader2, Plug, RotateCcw, ShieldCheck, X } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AlertTriangle, ArrowUpRight, Check, CircleHelp, Database, ExternalLink, KeyRound, Loader2, RotateCcw, ShieldCheck, X } from 'lucide-react';
 import { motion } from 'motion/react';
-import { studioApi, type ConnectionStatus, type Diagnostics } from './lib/studioApi';
+import { studioApi, type Diagnostics } from './lib/studioApi';
 
-type Section='vercel'|'ai'|'mcp'|'reset';
+type Section='vercel'|'ai'|'reset';
 type Props={onClose:()=>void;onOpenSetup:()=>void};
 
 const sections:Array<{id:Section;label:string}>=[
   {id:'vercel',label:'Vercel setup'},
   {id:'ai',label:'AI'},
-  {id:'mcp',label:'MCP'},
   {id:'reset',label:'Reset'}
 ];
 
@@ -18,21 +17,16 @@ function StatusMark({ok}:{ok:boolean}){return <span className={ok?'help-status-m
 export default function HelpDialog({onClose,onOpenSetup}:Props){
   const [section,setSection]=useState<Section>('vercel');
   const [diagnostics,setDiagnostics]=useState<Diagnostics|null>(null);
-  const [connections,setConnections]=useState<ConnectionStatus|null>(null);
   const [checking,setChecking]=useState(false);
   const [error,setError]=useState('');
-  const [copied,setCopied]=useState('');
   const dialogRef=useRef<HTMLElement>(null);
   const origin=typeof window==='undefined'?'https://your-production-domain.vercel.app':window.location.origin;
   const healthUrl=origin+'/api/health';
-  const mcpUrl=connections?.mcpUrl||origin+'/api/mcp';
 
   const runChecks=useCallback(async(liveAI=false)=>{
     setChecking(true);setError('');
-    try{
-      const [nextDiagnostics,nextConnections]=await Promise.all([studioApi.diagnostics(liveAI),studioApi.connectionStatus()]);
-      setDiagnostics(nextDiagnostics);setConnections(nextConnections);
-    }catch(err:any){setError(err?.message||'The connection check could not finish. No project data was changed.')}
+    try{setDiagnostics(await studioApi.diagnostics(liveAI))}
+    catch(err:any){setError(err?.message||'The connection check could not finish. No project data was changed.')}
     finally{setChecking(false)}
   },[]);
 
@@ -51,41 +45,25 @@ export default function HelpDialog({onClose,onOpenSetup}:Props){
     node.addEventListener('keydown',key);return()=>{node.removeEventListener('keydown',key);if(previous?.isConnected)previous.focus()};
   },[onClose]);
 
-  const copy=async(value:string,label:string)=>{
-    setError('');
-    try{await navigator.clipboard.writeText(value);setCopied(label);window.setTimeout(()=>setCopied(''),1600)}
-    catch{setError('Copy was blocked. Select the text and press Ctrl+C.')}
-  };
-
-  const mcpConfig=useMemo(()=>JSON.stringify({
-    mcpServers:{
-      remainder:{
-        url:mcpUrl,
-        headers:{Authorization:'Bearer REPLACE_WITH_YOUR_API_KEY'}
-      }
-    }
-  },null,2),[mcpUrl]);
-
   const diagnosticItems=diagnostics?[
     {label:'Project memory',ok:diagnostics.storage.ok,detail:diagnostics.storage.detail,icon:Database},
-    {label:'AI conversation',ok:diagnostics.ai.ok,detail:diagnostics.ai.detail,icon:KeyRound},
-    {label:'MCP access',ok:diagnostics.mcp.ok,detail:diagnostics.mcp.detail,icon:Plug}
+    {label:'AI conversation',ok:diagnostics.ai.ok,detail:diagnostics.ai.detail,icon:KeyRound}
   ]:[];
 
   return <motion.div className="modal-backdrop help-backdrop" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onMouseDown={onClose}>
     <motion.section ref={dialogRef} className="help-dialog" role="dialog" aria-modal="true" aria-label="Help and connection repair" tabIndex={-1} initial={{opacity:0,y:10,scale:.99}} animate={{opacity:1,y:0,scale:1}} exit={{opacity:0,y:6}} onMouseDown={event=>event.stopPropagation()}>
       <header className="help-header">
-        <div><p className="eyebrow">Help and connection repair</p><h2>Make every connection legible.</h2><p>Use the live check, follow the exact hosted setup, and know what Remainder will preserve if a service is unavailable.</p></div>
+        <div><p className="eyebrow">Help and connection repair</p><h2>See what is working.</h2><p>Verify storage and AI from this exact deployment, then follow the matching recovery path without guessing.</p></div>
         <button type="button" className="icon-button" onClick={onClose} aria-label="Close help"><X size={17}/></button>
       </header>
 
       <section className="help-health" aria-live="polite" aria-busy={checking}>
         <div className="help-health-heading"><div><ShieldCheck size={16}/><span><strong>Current deployment</strong><small>{origin}</small></span></div><button type="button" className="small-action" onClick={()=>void runChecks(true)} disabled={checking}>{checking?<Loader2 className="spin" size={12}/>:<RotateCcw size={12}/>}Run full check</button></div>
         <div className="help-health-grid">
-          {diagnosticItems.length?diagnosticItems.map(item=>{const Icon=item.icon;return <div key={item.label}><Icon size={15}/><span><strong>{item.label}</strong><small>{item.detail}</small></span><StatusMark ok={item.ok}/></div>}):<p>{checking?'Checking the deployment...':'Connection details are not available yet.'}</p>}
+          {diagnosticItems.length?diagnosticItems.map(item=>{const Icon=item.icon;return <div key={item.label}><Icon size={15}/><span><strong>{item.label}</strong><small>{item.detail}</small></span><StatusMark ok={item.ok}/></div>}):<p>{checking?'Checking the deployment…':'Connection details are not available yet.'}</p>}
         </div>
         {error&&<p className="form-error" role="alert">{error}</p>}
-        <p className="help-health-note">“Configured” only means a variable exists. “Run full check” verifies a real Blob write and a live NVIDIA response.</p>
+        <p className="help-health-note">The initial check reads configuration. “Run full check” performs a real Blob write and asks the configured model for a live response.</p>
       </section>
 
       <div className="help-body">
@@ -93,67 +71,52 @@ export default function HelpDialog({onClose,onOpenSetup}:Props){
         <main className="help-content">
           {section==='vercel'&&<VercelGuide healthUrl={healthUrl}/>}
           {section==='ai'&&<AiGuide diagnostics={diagnostics}/>}
-          {section==='mcp'&&<McpGuide config={mcpConfig} copied={copied} onCopy={()=>void copy(mcpConfig,'mcp')} url={mcpUrl}/>}
           {section==='reset'&&<ResetGuide/>}
         </main>
       </div>
 
-      <footer className="help-footer"><button type="button" className="text-button" onClick={()=>{onClose();onOpenSetup()}}><CircleHelp size={13}/>Open guided setup</button><span>Secrets stay in server environment variables. Never paste them into a project or conversation.</span></footer>
+      <footer className="help-footer"><button type="button" className="text-button" onClick={()=>{onClose();onOpenSetup()}}><CircleHelp size={13}/>Open guided setup</button><span>Project memory and deployment credentials are separate. Resetting one never silently changes the other.</span></footer>
     </motion.section>
-  </motion.div>
+  </motion.div>;
 }
 
 function VercelGuide({healthUrl}:{healthUrl:string}){
-  return <article className="help-article"><p className="eyebrow">Hosted setup</p><h3>Configure Production, then redeploy.</h3><p className="help-lede">Vercel environment changes do not alter an existing deployment. Add each value to the Production environment and create a new deployment before testing.</p>
+  return <article className="help-article"><p className="eyebrow">Hosted setup</p><h3>Two services, one clear check.</h3><p className="help-lede">Remainder needs private storage. Hosted AI uses Vercel’s deployment identity, so a production deployment does not need a provider key copied into Environment Variables.</p>
     <ol className="help-steps">
-      <li><span>1</span><div><strong>Connect private project memory</strong><p>In Vercel, open the Remainder project, then <b>Storage</b>. Create or connect a <b>Private Vercel Blob</b> store. Vercel injects <code>BLOB_READ_WRITE_TOKEN</code>; do not paste a Blob URL as its value.</p></div></li>
-      <li><span>2</span><div><strong>Add the server variables</strong><p>Open <b>Settings → Environment Variables</b>. Add the variables below to <b>Production</b>. Use Preview too only when you want branch deployments to call the same services.</p></div></li>
+      <li><span>1</span><div><strong>Connect private project memory</strong><p>In the Vercel project, open <b>Storage</b>. Create or connect a <b>Private Vercel Blob</b> store. Vercel adds <code>BLOB_READ_WRITE_TOKEN</code> automatically; never paste a Blob URL as the token.</p></div></li>
+      <li><span>2</span><div><strong>Let Vercel authenticate AI</strong><p>Every Vercel deployment receives <code>VERCEL_OIDC_TOKEN</code> automatically. Do not create or copy this value yourself. Remainder uses it to call Vercel AI Gateway.</p></div></li>
     </ol>
     <div className="help-env-list">
-      <div><code>BLOB_READ_WRITE_TOKEN</code><span><b>Required.</b> Added automatically when the private Blob store is connected.</span></div>
-      <div><code>NVIDIA_API_KEY</code><span><b>Required for hosted AI.</b> A build.nvidia.com key beginning with <code>nvapi-</code>.</span></div>
-      <div><code>NVIDIA_MODEL</code><span><b>Recommended.</b> <code>meta/llama-3.3-70b-instruct</code></span></div>
-      <div><code>NVIDIA_TIMEOUT_MS</code><span><b>Optional.</b> Use <code>30000</code> if NVIDIA is slow from your Vercel region.</span></div>
-      <div><code>API_KEY</code><span><b>Required only for MCP.</b> Your own random 32-byte secret; it is not the NVIDIA key.</span></div>
-      <div><code>PUBLIC_APP_URL</code><span><b>Recommended for MCP.</b> Your stable public production domain, including <code>https://</code>.</span></div>
+      <div><code>BLOB_READ_WRITE_TOKEN</code><span><b>Required for hosted memory.</b> Injected when the private Blob store is connected.</span></div>
+      <div><code>AI_MODEL</code><span><b>Optional.</b> Defaults to <code>google/gemini-2.5-flash-lite</code>.</span></div>
+      <div><code>AI_TIMEOUT_MS</code><span><b>Optional.</b> Defaults to <code>12000</code>; accepted range is 3000–25000.</span></div>
+      <div><code>AI_GATEWAY_API_KEY</code><span><b>Local development only.</b> Use this when the app is not running inside Vercel.</span></div>
     </div>
     <ol className="help-steps" start={3}>
-      <li><span>3</span><div><strong>Redeploy the production build</strong><p>Save the variables. When Vercel offers <b>Redeploy</b>, use it; otherwise open <b>Deployments</b>, choose the latest production deployment, open its menu, and select <b>Redeploy</b>. Variables apply only to new deployments.</p></div></li>
-      <li><span>4</span><div><strong>Use the production domain</strong><p>Open the stable production domain, not a commit-specific generated URL. Standard Deployment Protection can require Vercel sign-in on generated and preview URLs while leaving the production domain public.</p></div></li>
-      <li><span>5</span><div><strong>Verify both layers</strong><p>Open the health endpoint below. It should return JSON with <code>"ok": true</code> and <code>"storage": "vercel-blob"</code>. Return here and run the full check to verify storage writes and NVIDIA.</p><a href={healthUrl} target="_blank" rel="noreferrer">Open API health<ArrowUpRight size={12}/></a></div></li>
+      <li><span>3</span><div><strong>Redeploy after storage or model changes</strong><p>Environment changes apply only to new deployments. Open <b>Deployments</b>, redeploy the latest production build, and wait for it to finish.</p></div></li>
+      <li><span>4</span><div><strong>Verify the deployment</strong><p>Open the health endpoint below. It should return JSON with <code>"ok": true</code> and <code>"storage": "vercel-blob"</code>. Then return here and run the full check.</p><a href={healthUrl} target="_blank" rel="noreferrer">Open API health<ArrowUpRight size={12}/></a></div></li>
     </ol>
-    <div className="help-links"><a href="https://vercel.com/dashboard" target="_blank" rel="noreferrer">Vercel dashboard<ExternalLink size={12}/></a><a href="https://vercel.com/docs/environment-variables" target="_blank" rel="noreferrer">Environment variable guide<ExternalLink size={12}/></a><a href="https://vercel.com/docs/vercel-blob" target="_blank" rel="noreferrer">Vercel Blob guide<ExternalLink size={12}/></a></div>
-  </article>
+    <div className="help-callout"><AlertTriangle size={16}/><div><strong>If the app opens but memory does not</strong><p>The Blob store is missing, connected to a different Vercel project, or the deployment predates the connection. Reconnect it to this project and redeploy.</p></div></div>
+  </article>;
 }
 
 function AiGuide({diagnostics}:{diagnostics:Diagnostics|null}){
-  return <article className="help-article"><p className="eyebrow">NVIDIA NIM</p><h3>A working key must answer a live request.</h3><p className="help-lede">{diagnostics?.ai.detail||'Run the full check above to test the key and model from this deployment.'}</p>
-    <div className="help-callout"><KeyRound size={16}/><div><strong>The known-good hosted configuration</strong><p><code>NVIDIA_API_KEY=nvapi-...</code><br/><code>NVIDIA_MODEL=meta/llama-3.3-70b-instruct</code><br/><code>NVIDIA_TIMEOUT_MS=30000</code></p></div></div>
-    <h4>If the check says “rejected”</h4><ol className="help-numbered"><li>Sign in to NVIDIA Build and create a new API key.</li><li>Replace <code>NVIDIA_API_KEY</code> in Vercel Production. Do not include quotes or the variable name in its value.</li><li>Redeploy, reopen the production domain, then run the full check again.</li></ol>
-    <h4>If the check says “timed out”</h4><ol className="help-numbered"><li>Confirm the model is exactly <code>meta/llama-3.3-70b-instruct</code>.</li><li>Add <code>NVIDIA_TIMEOUT_MS=30000</code>, or use up to <code>50000</code> for a slow region.</li><li>Redeploy and retry once. A timeout is different from a missing key.</li></ol>
-    <h4>What happens while NVIDIA is unavailable</h4><p>Remainder uses its local collaborator, saves both messages, and tells you why it fell back. The text box must remain usable; only the depth of the generated response changes.</p>
-    <div className="help-links"><a href="https://build.nvidia.com/settings/api-keys" target="_blank" rel="noreferrer">Create NVIDIA API key<ExternalLink size={12}/></a><a href="https://build.nvidia.com/meta/llama-3_3-70b-instruct" target="_blank" rel="noreferrer">Current model page<ExternalLink size={12}/></a></div>
-  </article>
-}
-
-function McpGuide({config,copied,onCopy,url}:{config:string;copied:string;onCopy:()=>void;url:string}){
-  return <article className="help-article"><p className="eyebrow">Remote MCP server</p><h3>Use one secret in two places.</h3><p className="help-lede">MCP is optional. It lets another compatible AI client read and write Remainder memory through the protected endpoint.</p>
-    <ol className="help-steps">
-      <li><span>1</span><div><strong>Create the bearer secret</strong><p>In a Windows terminal with Node installed, run <code>node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"</code>. Copy the output once.</p></div></li>
-      <li><span>2</span><div><strong>Add it to Vercel</strong><p>Create <code>API_KEY</code> in the Production environment. Paste only the generated value, redeploy, then keep the same value for the client configuration.</p></div></li>
-      <li><span>3</span><div><strong>Use a stable endpoint</strong><p>Set <code>PUBLIC_APP_URL</code> to the public production domain. The endpoint should be <code>{url}</code>, not a protected commit-specific deployment URL.</p></div></li>
-      <li><span>4</span><div><strong>Configure the client</strong><p>Replace the placeholder below with the exact <code>API_KEY</code>. The client must send the <code>Authorization: Bearer …</code> header.</p></div></li>
-    </ol>
-    <div className="help-code"><div><span>MCP client JSON</span><button type="button" onClick={onCopy}><Copy size={12}/>{copied==='mcp'?'Copied':'Copy JSON'}</button></div><pre>{config}</pre></div>
-    <p className="help-fine">If your client calls this “remote MCP,” “custom connector,” or “streamable HTTP,” use the same URL and bearer header. A 401 means the client secret does not exactly match Vercel <code>API_KEY</code>.</p>
-  </article>
+  const detail=diagnostics?.ai.detail||'Run the full check above to test the deployment identity, model, and available AI Gateway credits.';
+  return <article className="help-article"><p className="eyebrow">Vercel AI Gateway</p><h3>One connection, with an honest offline path.</h3><p className="help-lede">{detail}</p>
+    <div className="help-callout"><KeyRound size={16}/><div><strong>Production needs no copied AI secret</strong><p>On Vercel, <code>VERCEL_OIDC_TOKEN</code> is injected automatically. The only optional production setting is <code>AI_MODEL=google/gemini-2.5-flash-lite</code>.</p></div></div>
+    <h4>If the check says the deployment cannot be verified</h4><ol className="help-numbered"><li>Confirm you are testing a Vercel deployment, not an old static host.</li><li>Redeploy the latest commit so Vercel issues a fresh deployment identity.</li><li>Return to this production URL and run the full check again.</li></ol>
+    <h4>If the check mentions credits, budget, or rate limits</h4><ol className="help-numbered"><li>Open Vercel AI Gateway and review Usage.</li><li>Enable or add credits for the Vercel team that owns this project.</li><li>Wait a minute, then run the full check again.</li></ol>
+    <h4>If the check mentions the model</h4><ol className="help-numbered"><li>Remove an old provider-specific model variable.</li><li>Set <code>AI_MODEL</code> to <code>google/gemini-2.5-flash-lite</code>.</li><li>Redeploy before testing again.</li></ol>
+    <h4>Local development</h4><p>Create an AI Gateway key in Vercel, add <code>AI_GATEWAY_API_KEY=...</code> to the local <code>.env</code>, and restart the dev server. Never expose that key through a <code>VITE_</code> variable.</p>
+    <h4>What happens while hosted AI is unavailable</h4><p>The text box still works. Remainder responds to the exact subject, uses matching project memory, saves both messages, and shows a calm notice that offline guidance was used. It never presents a canned fallback as a hosted model response.</p>
+    <div className="help-links"><a href="https://vercel.com/ai-gateway" target="_blank" rel="noreferrer">Open AI Gateway<ExternalLink size={12}/></a><a href="https://vercel.com/docs/ai-gateway" target="_blank" rel="noreferrer">Read Vercel’s setup guide<ExternalLink size={12}/></a></div>
+  </article>;
 }
 
 function ResetGuide(){
-  return <article className="help-article"><p className="eyebrow">Begin again</p><h3>Reset memory without hiding what remains.</h3><p className="help-lede">Open <b>Settings → Fresh start → Begin again</b>, confirm the warning, then choose <b>Reset everything</b>.</p>
-    <div className="help-reset-grid"><div><Check size={14}/><span><strong>Removed</strong><small>All projects, conversations, captured memory, sources, and history.</small></span></div><div><ShieldCheck size={14}/><span><strong>Kept on Vercel</strong><small>Blob connection, NVIDIA key, model, MCP secret, and production domain variables.</small></span></div><div><Database size={14}/><span><strong>Created</strong><small>One blank “My first project” workspace and a fresh onboarding path.</small></span></div></div>
-    <h4>How to know it worked</h4><ol className="help-numbered"><li>The Settings dialog closes.</li><li>Onboarding opens with a “workspace is clear” confirmation.</li><li>The sidebar contains only <b>My first project</b>.</li><li>Sending a new message creates a new conversation exchange; it does not restore old data.</li></ol>
-    <h4>If reset fails</h4><ol className="help-numbered"><li>Do not keep clicking. Run the full check above.</li><li>If Project memory is red, reconnect Private Vercel Blob and redeploy.</li><li>If health is green but the write check is red, redeploy the latest code and try once more.</li><li>Export a backup from Settings before any further recovery work.</li></ol>
-    <p className="help-fine">Reset is permanent. Hosted secrets are deliberately separate from project memory, so beginning again does not disconnect the services you already configured.</p>
-  </article>
+  return <article className="help-article"><p className="eyebrow">Begin again</p><h3>Reset project memory, not infrastructure.</h3><p className="help-lede">Settings → Begin again permanently removes every project, conversation, source, memory, and history event, then creates one blank project and reopens onboarding.</p>
+    <div className="help-callout"><RotateCcw size={16}/><div><strong>What reset preserves</strong><p>Your private Blob connection, Vercel deployment identity, AI Gateway configuration, and local environment variables remain unchanged. They belong to the runtime, not project memory.</p></div></div>
+    <h4>Before resetting</h4><ol className="help-numbered"><li>Use <b>Export workspace backup</b> in Settings if anything may be useful later.</li><li>Choose <b>Begin again</b>, read the confirmation, and select <b>Reset everything</b>.</li><li>Wait for the welcome flow. Seeing one blank project confirms the reset finished.</li></ol>
+    <h4>If reset fails</h4><p>Nothing should be partially cleared. Run the connection check and repair project storage first, then retry. On Vercel, a failed write usually means the Blob connection belongs to another project or the deployment is stale.</p>
+  </article>;
 }

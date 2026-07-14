@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { creativeMemoryStore, type DeletedProjectSnapshot } from './creativeMemory.js';
-import { describeNvidiaError, extractSessionMemory, generateStudioReply, testNvidiaConnection } from './creativeAI.js';
-import { configureAI, connectionStatus, disconnectAI, generateMcpCredential, resetConnections } from './connectionSettings.js';
+import { describeGatewayError, extractSessionMemory, generateStudioReply, testGatewayConnection } from './creativeAI.js';
+import { connectionStatus } from './connectionSettings.js';
 
 export function createCreativeRouter(onChange:(event:string,data:unknown)=>void){
   const router=Router();
@@ -13,50 +13,25 @@ export function createCreativeRouter(onChange:(event:string,data:unknown)=>void)
     res.json(await creativeMemoryStore.bootstrap(typeof req.query.projectId==='string'?req.query.projectId:undefined));
   }));
 
-
   router.get('/settings/connections',handle(async(_req,res)=>{
     res.json(await connectionStatus());
   }));
 
-  router.post('/settings/ai',handle(async(req,res)=>{
-    const status=await configureAI(String(req.body?.apiKey||''),String(req.body?.model||'meta/llama-3.3-70b-instruct'));
-    onChange('connections-updated',{aiConfigured:true});res.json(status);
-  }));
-
-  router.delete('/settings/ai',handle(async(_req,res)=>{
-    const status=await disconnectAI();
-    onChange('connections-updated',{aiConfigured:false});res.json(status);
-  }));
-
-  router.post('/settings/mcp',handle(async(_req,res)=>{
-    const result=await generateMcpCredential();
-    onChange('connections-updated',{mcpConfigured:true});res.status(201).json(result);
-  }));
-
-
-  router.post('/settings/reset',handle(async(req,res)=>{
-    const clearConnections=req.body?.clearConnections!==false&&!process.env.VERCEL;
+  router.post('/settings/reset',handle(async(_req,res)=>{
     const bootstrap=await creativeMemoryStore.resetAndBootstrap();
-    let connections=await connectionStatus();
-    let warning:string|undefined;
-    if(clearConnections){
-      try{connections=await resetConnections()}
-      catch(error){console.error('Project memory reset, but local credentials could not be cleared',error);warning='The workspace was reset, but local connection credentials could not be removed. Delete them from .env before sharing this computer.'}
-    }
-    onChange('studio-reset',{clearConnections,warning});
-    res.json({bootstrap,connections,warning});
+    const connections=await connectionStatus();
+    onChange('studio-reset',{projectId:bootstrap.project.id});
+    res.json({bootstrap,connections});
   }));
 
   router.post('/settings/diagnostics',handle(async(req,res)=>{
     const status=await connectionStatus();
     let storage:{ok:boolean;detail:string};
     try{await creativeMemoryStore.exportState();await creativeMemoryStore.verifyStorageWrite();storage={ok:true,detail:status.storageMode==='vercel-blob'?'Private Vercel Blob is readable and writable.':'Local project storage is readable and writable.'}}catch(error:any){storage={ok:false,detail:error?.message||'Project storage could not be read or written.'}}
-    let ai:{ok:boolean;mode:'nim'|'local';detail:string}={ok:true,mode:status.aiConfigured?'nim':'local',detail:status.aiConfigured?'NVIDIA NIM is configured. Run the live check to verify the key and model.':'Local intelligence is active; no API key is required.'};
-    if(req.body?.testAI&&status.aiConfigured){try{await testNvidiaConnection(process.env.NVIDIA_API_KEY||'',status.aiModel);ai={ok:true,mode:'nim',detail:'NVIDIA NIM responded successfully with '+status.aiModel+'.'}}catch(error){ai={ok:false,mode:'nim',detail:describeNvidiaError(error)}}}
-    const mcp={ok:status.mcpConfigured,detail:status.mcpConfigured?'An MCP bearer credential is present for '+status.mcpUrl+'.':'No MCP bearer credential is configured. Remainder itself still works.',url:status.mcpUrl};
-    res.json({runtime:status.runtime,storage,ai,mcp,configWritable:status.configWritable});
+    let ai:{ok:boolean;mode:'gateway'|'offline';detail:string}={ok:true,mode:status.aiConfigured?'gateway':'offline',detail:status.aiConfigured?'Vercel AI Gateway credentials are available for '+status.aiModel+'. Run the full check to verify a live response.':'Prompt-specific offline guidance is active. Connect AI Gateway for hosted model responses.'};
+    if(req.body?.testAI&&status.aiConfigured){try{await testGatewayConnection(undefined,status.aiModel);ai={ok:true,mode:'gateway',detail:'Vercel AI Gateway responded successfully with '+status.aiModel+'.'}}catch(error){ai={ok:false,mode:'gateway',detail:describeGatewayError(error)}}}
+    res.json({runtime:status.runtime,storage,ai,configWritable:status.configWritable});
   }));
-
 
   router.post('/projects',handle(async(req,res)=>{
     const result=await creativeMemoryStore.createProject(req.body||{});
@@ -78,7 +53,6 @@ export function createCreativeRouter(onChange:(event:string,data:unknown)=>void)
     onChange('project-restored',result);res.status(201).json(result);
   }));
 
-  // Read-only compatibility for browser tabs opened before the navigation-write removal.
   router.post('/projects/:id/active',handle(async(req,res)=>{
     await creativeMemoryStore.setActiveProject(req.params.id);res.json({success:true});
   }));
