@@ -89,6 +89,9 @@ describe('visible interaction integrity',()=>{
     expect(onboarding).toContain('The workspace is clear.');
     expect(onboarding).not.toContain('MCP');
     expect(onboarding).toContain('AI Gateway');
+    expect(onboarding).toContain('Currently in alpha testing');
+    expect(app).toContain('Remainder is currently in alpha testing');
+    expect(help).toContain('Remainder is in alpha testing');
     expect(help).toContain('aria-modal');
     expect(help).toContain('BLOB_READ_WRITE_TOKEN');
     expect(help).toContain('VERCEL_OIDC_TOKEN');

@@ -1,6 +1,8 @@
-﻿# Remainder
+# Remainder
 
 Remainder is a personal project-memory workspace where conversations become durable creative context. It keeps the decisions, questions, experiments, risks, and unfinished threads that explain how a project became itself.
+
+> **Status: Alpha testing.** Core workflows are usable, but integrations and edge cases are still being refined. Export important work regularly and expect occasional rough edges.
 
 ## The working loop
 
